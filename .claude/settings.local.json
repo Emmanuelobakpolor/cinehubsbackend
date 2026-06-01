@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(venv/Scripts/python manage.py makemigrations)",
+      "Bash(venv/Scripts/python manage.py migrate)",
+      "Bash(venv/Scripts/python manage.py makemigrations movies)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(file \"c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend\\\\cinehubs/ios/Runner/Assets.xcassets/AppIcon.appiconset/\"*.png)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|json|css\\)$\")",
+      "Bash(python manage.py makemigrations movies)",
+      "Bash(python manage.py migrate)",
+      "Bash(xargs ls:*)",
+      "Bash(find /c/Users/USER/Documents/movie-streaming-backend -name \"admin.py\" -type f ! -path \"*/.kilo/*\" ! -path \"*/venv/*\" ! -path \"*/Lib/*\" -exec grep -l \"admin\" {} \\\\;)",
+      "Bash(xargs grep:*)",
+      "Bash(python -c ':*)",
+      "Bash(grep -E \"\\\\.\\(yml|yaml|conf|config|sh\\)$\")",
+      "Bash(grep -v \"^d.*\\\\.$\")",
+      "Bash(iconv -f UTF-16 -t UTF-8)",
+      "Bash(pip install:*)"
+    ]
+  }
+}

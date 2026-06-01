@@ -133,21 +133,18 @@ else:
 CORS_ALLOW_ALL_ORIGINS = True
 
 # ─── EMAIL ─────────────────────────────────────────────────────────────────────
-# Using Resend (https://resend.com) for transactional email (OTP, password reset).
-# Set RESEND_API_KEY in .env. Set USE_CONSOLE_EMAIL=True to skip sending during dev.
+# Using Twilio SendGrid for transactional email (OTP, password reset).
+# Set USE_CONSOLE_EMAIL=True to print emails to terminal instead of sending.
 
 USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=True, cast=bool)
-RESEND_API_KEY = config('RESEND_API_KEY', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@movieapp.com')
 
-# ── SendGrid (disabled — replaced by Resend) ──────────────────────────────────
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.sendgrid.net'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'apikey'
-# EMAIL_HOST_PASSWORD = config('SENDGRID_API_KEY', default='')
-# ─────────────────────────────────────────────────────────────────────────────
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'apikey'
+EMAIL_HOST_PASSWORD = config('SENDGRID_API_KEY', default='')
 
 # ─── FLUTTERWAVE ───────────────────────────────────────────────────────────────
 # Set PAYMENT_TEST_MODE=False in .env once you have real Flutterwave keys.

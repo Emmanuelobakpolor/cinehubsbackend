@@ -1,6 +1,6 @@
 from django.utils import timezone
 from django.conf import settings
-import resend
+from django.core.mail import send_mail
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -28,23 +28,23 @@ def _get_stats(user):
     }
 
 
-def _send_resend_email(to_email, subject, body):
-    """Send a transactional email via Resend. Falls back to console if USE_CONSOLE_EMAIL=True."""
+def _send_email(to_email, subject, body):
+    """Send a transactional email via SendGrid. Falls back to console if USE_CONSOLE_EMAIL=True."""
     if settings.USE_CONSOLE_EMAIL:
         print(f"\n[EMAIL] To: {to_email} | Subject: {subject}\n{body}\n")
         return
-    resend.api_key = settings.RESEND_API_KEY
-    resend.Emails.send({
-        "from": settings.DEFAULT_FROM_EMAIL,
-        "to": [to_email],
-        "subject": subject,
-        "text": body,
-    })
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[to_email],
+        fail_silently=False,
+    )
 
 
 def send_email_otp(user):
     otp = user.set_email_otp()
-    _send_resend_email(
+    _send_email(
         to_email=user.email,
         subject='Email Verification OTP',
         body=f'Your OTP is: {otp}. It expires in 10 minutes.',
@@ -247,7 +247,7 @@ class ForgotPasswordView(APIView):
             try:
                 user = User.objects.get(email=serializer.validated_data['email'])
                 otp = user.set_password_reset_otp()
-                _send_resend_email(
+                _send_email(
                     to_email=user.email,
                     subject='Password Reset OTP',
                     body=f'Your password reset OTP is: {otp}. It expires in 10 minutes.',
