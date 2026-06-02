@@ -52,6 +52,8 @@ class LoginSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    # profile_picture is now a URLField (Cloudinary URL) — expose as plain string.
+    profile_picture = serializers.CharField(allow_null=True, allow_blank=True, required=False)
 
     class Meta:
         model = User

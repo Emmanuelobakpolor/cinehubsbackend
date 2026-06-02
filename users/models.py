@@ -8,7 +8,7 @@ from datetime import timedelta
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
-    profile_picture = models.ImageField(upload_to='profiles/', blank=True, null=True)
+    profile_picture = models.URLField(max_length=500, blank=True, null=True)
     bio = models.TextField(blank=True, null=True)
 
     is_email_verified = models.BooleanField(default=False)

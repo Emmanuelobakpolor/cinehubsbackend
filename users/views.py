@@ -199,13 +199,30 @@ class ProfilePictureView(APIView):
     def patch(self, request):
         if 'profile_picture' not in request.FILES:
             return Response({'error': 'No image file provided.'}, status=status.HTTP_400_BAD_REQUEST)
-        request.user.profile_picture = request.FILES['profile_picture']
+        import cloudinary.uploader
+        try:
+            result = cloudinary.uploader.upload(
+                request.FILES['profile_picture'],
+                resource_type='image',
+                folder='profiles',
+                timeout=60,
+            )
+            url = result.get('secure_url')
+            if not url:
+                raise ValueError('Cloudinary returned no URL')
+        except Exception as exc:
+            return Response(
+                {'error': f'Image upload failed: {exc}'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        request.user.profile_picture = url
         request.user.save(update_fields=['profile_picture'])
         serializer = UserProfileSerializer(request.user)
-        return Response(serializer.data)
+        data = serializer.data
+        data.update(_get_stats(request.user))
+        return Response(data)
 
     def delete(self, request):
-        request.user.profile_picture.delete(save=False)
         request.user.profile_picture = None
         request.user.save(update_fields=['profile_picture'])
         return Response({'message': 'Profile picture removed.'})
