@@ -1,6 +1,7 @@
 import os
 import time
 import cloudinary.utils
+import cloudinary.uploader
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -20,6 +21,27 @@ from .serializers import (
     WatchHistorySerializer, SavedMovieSerializer, MovieDownloadSerializer,
 )
 from subscriptions.models import SubscriptionPlan, UserSubscription
+
+
+_CLOUDINARY_UPLOAD_FIELDS = [
+    ('thumbnail',    'image', 'thumbnails'),
+    ('movie_file',   'video', 'movies'),
+    ('thriller_clip','video', 'movies'),
+]
+
+def _upload_movie_files_to_cloudinary(data):
+    """Upload any file objects in data to Cloudinary and replace with secure URLs."""
+    data = data.copy()
+    for field_name, resource_type, folder in _CLOUDINARY_UPLOAD_FIELDS:
+        file_obj = data.get(field_name)
+        if file_obj and hasattr(file_obj, 'read'):
+            result = cloudinary.uploader.upload(
+                file_obj,
+                resource_type=resource_type,
+                folder=folder,
+            )
+            data[field_name] = result['secure_url']
+    return data
 
 
 class CategoryListCreateView(generics.ListCreateAPIView):
@@ -48,6 +70,15 @@ class MovieListCreateView(generics.ListCreateAPIView):
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        data = _upload_movie_files_to_cloudinary(data)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Movie.objects.all()
@@ -58,6 +89,15 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAdminUser()]
         return [IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        data = _upload_movie_files_to_cloudinary(request.data)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
