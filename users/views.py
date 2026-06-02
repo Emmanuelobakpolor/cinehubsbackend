@@ -1,6 +1,5 @@
 from django.utils import timezone
 from django.conf import settings
-from django.core.mail import send_mail
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -29,22 +28,24 @@ def _get_stats(user):
 
 
 def _send_email(to_email, subject, body):
-    """Send a transactional email via SendGrid. Falls back to console if USE_CONSOLE_EMAIL=True."""
+    """Send a transactional email via SendGrid HTTP API. Falls back to console if USE_CONSOLE_EMAIL=True."""
     if settings.USE_CONSOLE_EMAIL:
         print(f"\n[EMAIL] To: {to_email} | Subject: {subject}\n{body}\n")
         return
+    import sendgrid
+    from sendgrid.helpers.mail import Mail
     print(f"[EMAIL] Attempting to send to: {to_email} | Subject: {subject}")
-    print(f"[EMAIL] HOST={settings.EMAIL_HOST} PORT={settings.EMAIL_PORT} USER={settings.EMAIL_HOST_USER} FROM={settings.DEFAULT_FROM_EMAIL}")
-    print(f"[EMAIL] API KEY set: {bool(settings.EMAIL_HOST_PASSWORD)}")
+    print(f"[EMAIL] API KEY set: {bool(settings.SENDGRID_API_KEY)}")
     try:
-        send_mail(
-            subject=subject,
-            message=body,
+        sg = sendgrid.SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
+        message = Mail(
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[to_email],
-            fail_silently=False,
+            to_emails=to_email,
+            subject=subject,
+            plain_text_content=body,
         )
-        print(f"[EMAIL] Sent successfully to {to_email}")
+        response = sg.send(message)
+        print(f"[EMAIL] Sent successfully to {to_email} | Status: {response.status_code}")
     except Exception as e:
         print(f"[EMAIL ERROR]: {repr(e)}")
         raise

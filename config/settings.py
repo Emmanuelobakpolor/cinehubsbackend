@@ -151,13 +151,7 @@ CSRF_TRUSTED_ORIGINS = [
 USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='admin@lexisdevelopmentgroup.com')
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.sendgrid.net'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'apikey'
-EMAIL_HOST_PASSWORD = config('SENDGRID_API_KEY', default='')
-EMAIL_TIMEOUT = 10
+SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 
 # ─── FLUTTERWAVE ───────────────────────────────────────────────────────────────
 # Set PAYMENT_TEST_MODE=False in .env once you have real Flutterwave keys.
