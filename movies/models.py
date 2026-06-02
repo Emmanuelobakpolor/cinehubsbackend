@@ -18,10 +18,10 @@ class Category(models.Model):
 class Movie(models.Model):
     title = models.CharField(max_length=255)
     synopsis = models.TextField()
-    thumbnail = models.ImageField(upload_to='thumbnails/')
+    thumbnail = models.URLField(max_length=500)
     trailer_url = models.URLField(blank=True, null=True)
-    thriller_clip = models.FileField(upload_to='thrillers/', blank=True, null=True, help_text='Short 30-second preview clip')
-    movie_file = models.FileField(upload_to='movies/')
+    thriller_clip = models.URLField(max_length=500, blank=True, null=True, help_text='Short 30-second preview clip')
+    movie_file = models.URLField(max_length=500)
     categories = models.ManyToManyField(Category, related_name='movies', blank=True)
     release_year = models.CharField(max_length=4, blank=True, default='')
     runtime = models.CharField(max_length=20, blank=True, default='')

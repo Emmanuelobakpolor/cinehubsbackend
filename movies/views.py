@@ -1,4 +1,6 @@
 import os
+import time
+import cloudinary.utils
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -6,7 +8,6 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import NotFound
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.parsers import MultiPartParser, FormParser
 
 from django.conf import settings
 from django.shortcuts import get_object_or_404
@@ -39,7 +40,6 @@ class MovieListCreateView(generics.ListCreateAPIView):
     filterset_fields = ['categories', 'is_trending']
     search_fields = ['title', 'synopsis', 'cast']
     ordering_fields = ['created_at', 'views_count']
-    parser_classes = [MultiPartParser, FormParser]
 
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -50,7 +50,6 @@ class MovieListCreateView(generics.ListCreateAPIView):
 class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Movie.objects.all()
     serializer_class = MovieSerializer
-    parser_classes = [MultiPartParser, FormParser]
 
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
@@ -146,13 +145,14 @@ class MovieStatsView(APIView):
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         total_bytes = 0
-        media_root = str(settings.MEDIA_ROOT)
-        for dirpath, _, filenames in os.walk(media_root):
-            for f in filenames:
-                try:
-                    total_bytes += os.path.getsize(os.path.join(dirpath, f))
-                except OSError:
-                    pass
+        media_root = getattr(settings, 'MEDIA_ROOT', None)
+        if media_root:
+            for dirpath, _, filenames in os.walk(str(media_root)):
+                for f in filenames:
+                    try:
+                        total_bytes += os.path.getsize(os.path.join(dirpath, f))
+                    except OSError:
+                        pass
 
         return Response({
             'total_movies': Movie.objects.count(),
@@ -223,7 +223,7 @@ class DownloadCheckView(APIView):
             return Response({
                 'status': 'allowed',
                 'reason': 'premium',
-                'download_url': request.build_absolute_uri(movie.movie_file.url) if movie.movie_file else '',
+                'download_url': movie.movie_file if movie.movie_file else '',
             })
 
         # Basic user who already paid for this specific movie
@@ -232,7 +232,7 @@ class DownloadCheckView(APIView):
             return Response({
                 'status': 'allowed',
                 'reason': 'already_paid',
-                'download_url': request.build_absolute_uri(movie.movie_file.url) if movie.movie_file else '',
+                'download_url': movie.movie_file if movie.movie_file else '',
             })
 
         # Must pay
@@ -277,7 +277,7 @@ class ConfirmDownloadView(APIView):
             return Response({
                 'status': 'allowed',
                 'reason': 'premium',
-                'download_url': request.build_absolute_uri(movie.movie_file.url) if movie.movie_file else '',
+                'download_url': movie.movie_file if movie.movie_file else '',
             })
 
         try:
@@ -298,7 +298,7 @@ class ConfirmDownloadView(APIView):
         return Response({
             'status': 'allowed',
             'reason': 'paid' if created else 'already_paid',
-            'download_url': request.build_absolute_uri(movie.movie_file.url) if movie.movie_file else '',
+            'download_url': movie.movie_file if movie.movie_file else '',
             'amount_paid': str(download.amount_paid),
         }, status=status.HTTP_200_OK)
 
@@ -310,6 +310,41 @@ class MyDownloadsView(generics.ListAPIView):
 
     def get_queryset(self):
         return MovieDownload.objects.filter(user=self.request.user).order_by('-paid_at')
+
+
+class CloudinaryUploadSignatureView(APIView):
+    """
+    GET /api/movies/upload-signature/?resource_type=video|image
+    Admin-only. Returns signed Cloudinary upload params so the admin frontend
+    can upload files directly to Cloudinary without routing through Django.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        if not getattr(settings, 'CLOUDINARY_STORAGE', None):
+            return Response(
+                {'error': 'Cloudinary is not configured on this server.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        resource_type = request.query_params.get('resource_type', 'video')
+        if resource_type not in ('video', 'image'):
+            return Response(
+                {'error': 'resource_type must be "video" or "image"'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        folder = 'movies' if resource_type == 'video' else 'thumbnails'
+        timestamp = int(time.time())
+        params_to_sign = {'timestamp': timestamp, 'folder': folder}
+        api_secret = settings.CLOUDINARY_STORAGE.get('API_SECRET', '')
+        signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
+        return Response({
+            'signature': signature,
+            'timestamp': timestamp,
+            'cloud_name': settings.CLOUDINARY_STORAGE.get('CLOUD_NAME', ''),
+            'api_key': settings.CLOUDINARY_STORAGE.get('API_KEY', ''),
+            'folder': folder,
+            'resource_type': resource_type,
+        })
 
 
 class UpdateWatchProgressView(APIView):

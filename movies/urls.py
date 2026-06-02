@@ -4,7 +4,7 @@ from .views import (
     TrendingMoviesView, WatchHistoryView, SavedMovieView, UnsaveMovieView, MovieStatsView,
     FeaturedMovieView, SetFeaturedMovieView,
     DownloadCheckView, ConfirmDownloadView, MyDownloadsView,
-    UpdateWatchProgressView,
+    UpdateWatchProgressView, CloudinaryUploadSignatureView,
 )
 
 urlpatterns = [
@@ -16,6 +16,7 @@ urlpatterns = [
     path('saved/', SavedMovieView.as_view()),
     path('saved/<int:movie_id>/', UnsaveMovieView.as_view()),
     path('my-downloads/', MyDownloadsView.as_view()),
+    path('upload-signature/', CloudinaryUploadSignatureView.as_view()),
     path('', MovieListCreateView.as_view()),
     path('<int:pk>/', MovieDetailView.as_view()),
     path('<int:pk>/set-featured/', SetFeaturedMovieView.as_view()),

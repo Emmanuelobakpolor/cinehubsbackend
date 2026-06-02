@@ -29,7 +29,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
 class WatchHistorySerializer(serializers.ModelSerializer):
     movie_title = serializers.CharField(source='movie.title', read_only=True)
-    movie_thumbnail = serializers.ImageField(source='movie.thumbnail', read_only=True)
+    movie_thumbnail = serializers.URLField(source='movie.thumbnail', read_only=True)
     # expires_at from UserMovieAccess — more accurate than watched_at + 10 days
     # because watched_at resets on every update (auto_now=True).
     expires_at = serializers.SerializerMethodField()
@@ -55,7 +55,7 @@ class WatchHistorySerializer(serializers.ModelSerializer):
 class SavedMovieSerializer(serializers.ModelSerializer):
     movie_id = serializers.IntegerField(source='movie.id', read_only=True)
     movie_title = serializers.CharField(source='movie.title', read_only=True)
-    movie_thumbnail = serializers.ImageField(source='movie.thumbnail', read_only=True)
+    movie_thumbnail = serializers.URLField(source='movie.thumbnail', read_only=True)
     movie_synopsis = serializers.CharField(source='movie.synopsis', read_only=True)
     movie_rating = serializers.CharField(source='movie.rating', read_only=True)
     movie_release_year = serializers.CharField(source='movie.release_year', read_only=True)
@@ -77,8 +77,8 @@ class SavedMovieSerializer(serializers.ModelSerializer):
 
 class MovieDownloadSerializer(serializers.ModelSerializer):
     movie_title = serializers.CharField(source='movie.title', read_only=True)
-    movie_thumbnail = serializers.ImageField(source='movie.thumbnail', read_only=True)
-    movie_file = serializers.FileField(source='movie.movie_file', read_only=True)
+    movie_thumbnail = serializers.URLField(source='movie.thumbnail', read_only=True)
+    movie_file = serializers.URLField(source='movie.movie_file', read_only=True)
 
     class Meta:
         model = MovieDownload
