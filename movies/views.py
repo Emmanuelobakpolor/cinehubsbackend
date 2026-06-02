@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.exceptions import NotFound
-from rest_framework.parsers import JSONParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
@@ -37,7 +37,7 @@ class MovieListCreateView(generics.ListCreateAPIView):
     queryset = Movie.objects.all().order_by('-created_at')
     serializer_class = MovieSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = [JSONParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['categories', 'is_trending']
     search_fields = ['title', 'synopsis', 'cast']
@@ -52,7 +52,7 @@ class MovieListCreateView(generics.ListCreateAPIView):
 class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Movie.objects.all()
     serializer_class = MovieSerializer
-    parser_classes = [JSONParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
