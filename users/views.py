@@ -229,11 +229,9 @@ class SendEmailOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        try:
-            send_email_otp(request.user)
-            return Response({'message': 'OTP sent to your email.'})
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        from users.tasks import send_email_otp_task
+        send_email_otp_task.delay(request.user.id)
+        return Response({'message': 'OTP sent to your email.'})
 
 
 class VerifyEmailView(APIView):
