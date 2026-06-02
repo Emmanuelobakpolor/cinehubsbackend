@@ -5,12 +5,13 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config(
-    'SECRET_KEY',
-    default='temporary-dev-key'
-)
+SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', cast=bool)
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'web-production-a39f0a.up.railway.app',
+    'localhost',
+    '127.0.0.1',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -67,7 +68,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-import dj_database_url
 DATABASES = {
     'default': dj_database_url.config(default=config('DATABASE_URL'))
 }
