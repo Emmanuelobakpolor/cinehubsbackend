@@ -33,13 +33,21 @@ def _send_email(to_email, subject, body):
     if settings.USE_CONSOLE_EMAIL:
         print(f"\n[EMAIL] To: {to_email} | Subject: {subject}\n{body}\n")
         return
-    send_mail(
-        subject=subject,
-        message=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[to_email],
-        fail_silently=False,
-    )
+    print(f"[EMAIL] Attempting to send to: {to_email} | Subject: {subject}")
+    print(f"[EMAIL] HOST={settings.EMAIL_HOST} PORT={settings.EMAIL_PORT} USER={settings.EMAIL_HOST_USER} FROM={settings.DEFAULT_FROM_EMAIL}")
+    print(f"[EMAIL] API KEY set: {bool(settings.EMAIL_HOST_PASSWORD)}")
+    try:
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[to_email],
+            fail_silently=False,
+        )
+        print(f"[EMAIL] Sent successfully to {to_email}")
+    except Exception as e:
+        print(f"[EMAIL ERROR]: {repr(e)}")
+        raise
 
 
 def send_email_otp(user):
