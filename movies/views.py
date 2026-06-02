@@ -1,5 +1,6 @@
 import os
 import time
+import cloudinary.api
 import cloudinary.utils
 import cloudinary.uploader
 from rest_framework import generics, status
@@ -388,6 +389,25 @@ class CloudinaryUploadSignatureView(APIView):
             'folder': folder,
             'resource_type': resource_type,
         })
+
+
+class CloudinaryPingView(APIView):
+    """GET /api/movies/cloudinary-ping/ — verify Cloudinary credentials are working."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        if not getattr(settings, 'CLOUDINARY_STORAGE', None):
+            return Response({'error': 'Cloudinary is not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        try:
+            cloudinary.config(
+                cloud_name=settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
+                api_key=settings.CLOUDINARY_STORAGE['API_KEY'],
+                api_secret=settings.CLOUDINARY_STORAGE['API_SECRET'],
+            )
+            result = cloudinary.api.ping()
+            return Response({'status': 'ok', 'cloudinary_response': result})
+        except Exception as e:
+            return Response({'status': 'error', 'detail': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
 
 
 class UpdateWatchProgressView(APIView):
