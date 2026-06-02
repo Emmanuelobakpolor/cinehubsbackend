@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 import cloudinary.api
 import cloudinary.utils
 import cloudinary.uploader
@@ -24,27 +25,55 @@ from .serializers import (
 from subscriptions.models import SubscriptionPlan, UserSubscription
 
 
+logger = logging.getLogger(__name__)
+
 _CLOUDINARY_UPLOAD_FIELDS = [
-    ('thumbnail',    'image', 'thumbnails'),
-    ('movie_file',   'video', 'movies'),
-    ('thriller_clip','video', 'movies'),
+    ('thumbnail', 'image', 'thumbnails'),
+    ('movie_file', 'video', 'movies'),
+    ('thriller_clip', 'video', 'movies'),
 ]
+
 
 def _upload_movie_files_to_cloudinary(data):
     """Upload any file objects in data to Cloudinary and replace with secure URLs."""
     data = data.copy()
+    request_start = time.time()
+
     for field_name, resource_type, folder in _CLOUDINARY_UPLOAD_FIELDS:
         file_obj = data.get(field_name)
         if file_obj and hasattr(file_obj, 'read'):
-            result = cloudinary.uploader.upload(
-                file_obj,
-                resource_type=resource_type,
-                folder=folder,
-            )
-            url = result.get('secure_url')
-            if not url:
-                raise ValueError(f"Cloudinary upload failed for {field_name}: no URL returned")
-            data[field_name] = url
+            upload_start = time.time()
+            try:
+                result = cloudinary.uploader.upload(
+                    file_obj,
+                    resource_type=resource_type,
+                    folder=folder,
+                    timeout=120,
+                )
+                url = result.get('secure_url')
+                if not url:
+                    raise ValueError(f"Cloudinary upload failed for {field_name}: no URL returned")
+                data[field_name] = url
+                logger.info(
+                    "Cloudinary upload success field=%s resource_type=%s folder=%s duration=%.2fs",
+                    field_name,
+                    resource_type,
+                    folder,
+                    time.time() - upload_start,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "Cloudinary upload failed field=%s resource_type=%s folder=%s duration=%.2fs error=%s",
+                    field_name,
+                    resource_type,
+                    folder,
+                    time.time() - upload_start,
+                    str(exc),
+                )
+                raise ValueError(
+                    f"Failed uploading {field_name} to Cloudinary. "
+                    f"Please retry with a smaller file or upload directly to Cloudinary."
+                ) from exc
 
     # Handle categories sent as a comma-separated string from multipart forms.
     # e.g. "1,2,3" → ["1", "2", "3"] so DRF can validate each as a PK.
@@ -52,6 +81,7 @@ def _upload_movie_files_to_cloudinary(data):
         ids = [x.strip() for x in data['categories'].split(',') if x.strip()]
         data.setlist('categories', ids)
 
+    logger.info("Cloudinary upload pipeline completed duration=%.2fs", time.time() - request_start)
     return data
 
 
@@ -83,7 +113,17 @@ class MovieListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
-        data = _upload_movie_files_to_cloudinary(data)
+        try:
+            data = _upload_movie_files_to_cloudinary(data)
+        except ValueError as exc:
+            return Response(
+                {
+                    'error': 'upload_failed',
+                    'detail': str(exc),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -103,7 +143,17 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
-        data = _upload_movie_files_to_cloudinary(request.data)
+        try:
+            data = _upload_movie_files_to_cloudinary(request.data)
+        except ValueError as exc:
+            return Response(
+                {
+                    'error': 'upload_failed',
+                    'detail': str(exc),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
