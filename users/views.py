@@ -60,10 +60,8 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             if not user.is_staff:
-                try:
-                    send_email_otp(user)
-                except Exception:
-                    pass
+                from .tasks import send_email_otp_task
+                send_email_otp_task.delay(user.pk)
             refresh = RefreshToken.for_user(user)
             message = (
                 'Registration successful.'
