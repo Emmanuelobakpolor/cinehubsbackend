@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     RegisterView, LoginView, AdminLoginView, LogoutView, ProfileView,
     ProfilePictureView, ChangePasswordView, SendEmailOTPView, VerifyEmailView,
-    ForgotPasswordView, ResetPasswordView, DashboardStatsView,
+    ForgotPasswordView, ResetPasswordView, DashboardStatsView, DeleteUserView,
 )
 
 urlpatterns = [
@@ -18,4 +18,5 @@ urlpatterns = [
     path('forgot-password/', ForgotPasswordView.as_view()),
     path('reset-password/', ResetPasswordView.as_view()),
     path('dashboard-stats/', DashboardStatsView.as_view()),
+    path('<int:user_id>/delete/', DeleteUserView.as_view()),
 ]
