@@ -18,7 +18,13 @@
       "Bash(grep -E \"\\\\.\\(yml|yaml|conf|config|sh\\)$\")",
       "Bash(grep -v \"^d.*\\\\.$\")",
       "Bash(iconv -f UTF-16 -t UTF-8)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(grep -r \"truncated\\\\|\\\\\\\\.\\\\\\\\.\\\\\\\\.|email.*truncate\" \"c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend\\\\cinehubsadmin\\\\src\" --include=\"*.tsx\" --include=\"*.jsx\")",
+      "Bash(find \"c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend\\\\cinehubsadmin\\\\src\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\\\\|verified\\\\|profile.*card\\\\|user.*profile\" {} \\\\;)",
+      "Bash(xargs wc:*)",
+      "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubsadmin/src\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
+      "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
+      "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubs/lib\" -type f \\\\\\( -name \"*.dart\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)"
     ]
   }
 }

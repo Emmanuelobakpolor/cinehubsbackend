@@ -138,6 +138,13 @@ CORS_ALLOWED_ORIGINS = [
     "https://web-production-a39f0a.up.railway.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'authorization',
+    'content-type',
+    'origin',
+    'x-requested-with',
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://cinehubsadmin.cinehubsapp.workers.dev",
