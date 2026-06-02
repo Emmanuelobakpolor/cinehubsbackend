@@ -67,15 +67,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+import dj_database_url
 DATABASES = {
-    'default': dj_database_url.config(
-        default=(
-            f"postgresql://{config('DB_USER')}:{config('DB_PASSWORD')}"
-            f"@{config('DB_HOST')}:{config('DB_PORT')}/{config('DB_NAME')}"
-        ),
-        conn_max_age=600,
-    )
+    'default': dj_database_url.config(default=config('DATABASE_URL'))
 }
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
