@@ -133,10 +133,9 @@ else:
     # Local storage for testing — files saved to BASE_DIR/media/
     MEDIA_ROOT = BASE_DIR / 'media'
 
-# Files should never be uploaded through Django — they go directly to Cloudinary.
-# These settings reject accidental large uploads before memory is exhausted.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB max request body
-FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024    # 5 MB before temp file
+# No upload size limit — files are streamed to Cloudinary.
+DATA_UPLOAD_MAX_MEMORY_SIZE = None
+FILE_UPLOAD_MAX_MEMORY_SIZE = None
 FILE_UPLOAD_HANDLERS = ['django.core.files.uploadhandler.TemporaryFileUploadHandler']
 
 CORS_ALLOWED_ORIGINS = [
