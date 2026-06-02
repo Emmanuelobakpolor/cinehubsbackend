@@ -36,7 +36,12 @@ _CLOUDINARY_UPLOAD_FIELDS = [
 
 def _upload_movie_files_to_cloudinary(data):
     """Upload any file objects in data to Cloudinary and replace with secure URLs."""
-    data = data.copy()
+    # QueryDict.copy() uses deepcopy which fails on file objects (BufferedRandom).
+    # Make it mutable in-place instead of copying.
+    if hasattr(data, '_mutable'):
+        data._mutable = True
+    else:
+        data = data.copy()
     request_start = time.time()
 
     for field_name, resource_type, folder in _CLOUDINARY_UPLOAD_FIELDS:
@@ -115,9 +120,8 @@ class MovieListCreateView(generics.ListCreateAPIView):
         return [IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
-        data = request.data.copy()
         try:
-            data = _upload_movie_files_to_cloudinary(data)
+            data = _upload_movie_files_to_cloudinary(request.data)
         except ValueError as exc:
             return Response(
                 {
