@@ -148,7 +148,7 @@ CSRF_TRUSTED_ORIGINS = [
 # Using Twilio SendGrid for transactional email (OTP, password reset).
 # Set USE_CONSOLE_EMAIL=True to print emails to terminal instead of sending.
 
-USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=True, cast=bool)
+USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@movieapp.com')
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
