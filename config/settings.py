@@ -152,7 +152,6 @@ USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='admin@lexisdevelopmentgroup.com')
 
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
-CINEHUBS_LOGO_URL = config('CINEHUBS_LOGO_URL', default='')
 
 # ─── FLUTTERWAVE ───────────────────────────────────────────────────────────────
 # Set PAYMENT_TEST_MODE=False in .env once you have real Flutterwave keys.
