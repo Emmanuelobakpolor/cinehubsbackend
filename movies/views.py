@@ -41,7 +41,17 @@ def _upload_movie_files_to_cloudinary(data):
                 resource_type=resource_type,
                 folder=folder,
             )
-            data[field_name] = result['secure_url']
+            url = result.get('secure_url')
+            if not url:
+                raise ValueError(f"Cloudinary upload failed for {field_name}: no URL returned")
+            data[field_name] = url
+
+    # Handle categories sent as a comma-separated string from multipart forms.
+    # e.g. "1,2,3" → ["1", "2", "3"] so DRF can validate each as a PK.
+    if 'categories' in data and isinstance(data.get('categories'), str):
+        ids = [x.strip() for x in data['categories'].split(',') if x.strip()]
+        data.setlist('categories', ids)
+
     return data
 
 
