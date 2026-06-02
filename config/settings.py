@@ -133,7 +133,16 @@ else:
     # Local storage for testing — files saved to BASE_DIR/media/
     MEDIA_ROOT = BASE_DIR / 'media'
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://cinehubsadmin.cinehubsapp.workers.dev",
+    "https://web-production-a39f0a.up.railway.app",
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://cinehubsadmin.cinehubsapp.workers.dev",
+    "https://web-production-a39f0a.up.railway.app",
+]
 
 # ─── EMAIL ─────────────────────────────────────────────────────────────────────
 # Using Twilio SendGrid for transactional email (OTP, password reset).
@@ -167,6 +176,13 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
+# ─── HTTPS / SECURITY HEADERS ─────────────────────────────────────────────────
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = False  # Railway handles SSL termination at the edge
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+# ─── CELERY / REDIS ───────────────────────────────────────────────────────────
 # Required for Upstash (TLS/SSL Redis)
 if REDIS_URL.startswith('rediss://'):
     CELERY_BROKER_USE_SSL = {'ssl_cert_reqs': None}
