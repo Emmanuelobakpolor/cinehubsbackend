@@ -5,7 +5,10 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='temporary-dev-key'
+)
 DEBUG = config('DEBUG', cast=bool)
 ALLOWED_HOSTS = ['*']
 
