@@ -27,7 +27,7 @@ def _get_stats(user):
     }
 
 
-def _send_email(to_email, subject, body):
+def _send_email(to_email, subject, body, html_body=None):
     """Send a transactional email via SendGrid HTTP API. Falls back to console if USE_CONSOLE_EMAIL=True."""
     if settings.USE_CONSOLE_EMAIL:
         print(f"\n[EMAIL] To: {to_email} | Subject: {subject}\n{body}\n")
@@ -43,6 +43,7 @@ def _send_email(to_email, subject, body):
             to_emails=to_email,
             subject=subject,
             plain_text_content=body,
+            html_content=html_body,
         )
         response = sg.send(message)
         print(f"[EMAIL] Sent successfully to {to_email} | Status: {response.status_code}")
@@ -51,12 +52,100 @@ def _send_email(to_email, subject, body):
         raise
 
 
+def _otp_email_html(otp):
+    logo_url = settings.CINEHUBS_LOGO_URL
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Email Verification</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0d0d14;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#0d0d14;padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:520px;">
+
+          <!-- ── HEADER ── -->
+          <tr>
+            <td align="center"
+                style="background-color:#13131f;border-radius:16px 16px 0 0;
+                       padding:36px 40px 28px;
+                       border-top:3px solid #f59e0b;">
+              <img src="{logo_url}" alt="CineHubs" width="72" height="72"
+                   style="display:block;margin:0 auto 14px;" />
+              <span style="font-size:22px;font-weight:800;letter-spacing:2px;
+                           color:#f59e0b;text-transform:uppercase;">CineHubs</span>
+            </td>
+          </tr>
+
+          <!-- ── BODY ── -->
+          <tr>
+            <td style="background-color:#1a1a2e;padding:40px 40px 36px;">
+              <h1 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#ffffff;">
+                Verify your email address
+              </h1>
+              <p style="margin:0 0 32px;font-size:14px;color:#8888aa;line-height:1.7;">
+                Enter the code below inside the CineHubs app to complete your
+                email verification. This code expires in
+                <strong style="color:#e2e2f0;">10 minutes</strong>.
+              </p>
+
+              <!-- OTP box -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center"
+                      style="background-color:#0d0d14;border:2px solid #f59e0b;
+                             border-radius:12px;padding:28px 20px;">
+                    <p style="margin:0 0 6px;font-size:11px;font-weight:600;
+                              letter-spacing:3px;color:#f59e0b;text-transform:uppercase;">
+                      Your verification code
+                    </p>
+                    <p style="margin:0;font-size:42px;font-weight:900;
+                              letter-spacing:14px;color:#ffffff;
+                              font-family:'Courier New',monospace;">
+                      {otp}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:32px 0 0;font-size:13px;color:#55556a;line-height:1.6;">
+                If you didn't create a CineHubs account, you can safely ignore
+                this email. Someone may have entered your address by mistake.
+              </p>
+            </td>
+          </tr>
+
+          <!-- ── FOOTER ── -->
+          <tr>
+            <td align="center"
+                style="background-color:#13131f;border-radius:0 0 16px 16px;
+                       padding:20px 40px 24px;border-top:1px solid #22223a;">
+              <p style="margin:0;font-size:12px;color:#3d3d55;">
+                &copy; 2026 CineHubs &nbsp;&middot;&nbsp; All rights reserved
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 def send_email_otp(user):
     otp = user.set_email_otp()
     _send_email(
         to_email=user.email,
-        subject='Email Verification OTP',
-        body=f'Your OTP is: {otp}. It expires in 10 minutes.',
+        subject='Email Verification OTP — CineHubs',
+        body=f'Your CineHubs OTP is: {otp}. It expires in 10 minutes.',
+        html_body=_otp_email_html(otp),
     )
 
 
