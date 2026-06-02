@@ -79,7 +79,10 @@ def _upload_movie_files_to_cloudinary(data):
     # e.g. "1,2,3" → ["1", "2", "3"] so DRF can validate each as a PK.
     if 'categories' in data and isinstance(data.get('categories'), str):
         ids = [x.strip() for x in data['categories'].split(',') if x.strip()]
-        data.setlist('categories', ids)
+        if hasattr(data, 'setlist'):
+            data.setlist('categories', ids)
+        else:
+            data['categories'] = ids
 
     logger.info("Cloudinary upload pipeline completed duration=%.2fs", time.time() - request_start)
     return data
