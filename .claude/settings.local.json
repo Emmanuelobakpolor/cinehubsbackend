@@ -24,7 +24,8 @@
       "Bash(xargs wc:*)",
       "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubsadmin/src\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
       "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
-      "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubs/lib\" -type f \\\\\\( -name \"*.dart\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)"
+      "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubs/lib\" -type f \\\\\\( -name \"*.dart\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
+      "Bash(grep -E \"\\\\.\\(dart\\)$\")"
     ]
   }
 }

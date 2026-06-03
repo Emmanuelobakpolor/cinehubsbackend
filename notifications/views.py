@@ -63,6 +63,43 @@ class RegisterDeviceTokenView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AdminNotificationsView(APIView):
+    """
+    GET  /api/notifications/admin/          — list latest 50 ADMIN notifications
+    PATCH /api/notifications/admin/<pk>/read/ — mark one as read
+    POST  /api/notifications/admin/read-all/ — mark all as read
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        notifications = (
+            Notification.objects
+            .filter(notification_type='ADMIN')
+            .order_by('-created_at')[:50]
+        )
+        serializer = NotificationSerializer(notifications, many=True)
+        unread = Notification.objects.filter(
+            notification_type='ADMIN', is_read=False
+        ).count()
+        return Response({'results': serializer.data, 'unread_count': unread})
+
+    def patch(self, request, pk=None):
+        if pk is None:
+            return Response({'error': 'pk required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            notif = Notification.objects.get(pk=pk, notification_type='ADMIN')
+            notif.is_read = True
+            notif.save()
+            return Response({'message': 'Marked as read.'})
+        except Notification.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request):
+        """Mark all ADMIN notifications as read."""
+        Notification.objects.filter(notification_type='ADMIN', is_read=False).update(is_read=True)
+        return Response({'message': 'All marked as read.'})
+
+
 class AdminAnalyticsView(APIView):
     permission_classes = [IsAdminUser]
 

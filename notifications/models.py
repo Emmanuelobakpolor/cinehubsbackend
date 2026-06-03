@@ -6,6 +6,7 @@ class Notification(models.Model):
     TYPE_CHOICES = (
         ('BROADCAST', 'Broadcast'),
         ('PERSONAL', 'Personal'),
+        ('ADMIN', 'Admin'),       # Internal alerts visible only to admin users
     )
 
     recipient = models.ForeignKey(
