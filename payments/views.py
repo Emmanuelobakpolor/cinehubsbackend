@@ -7,6 +7,7 @@ import requests
 from datetime import timedelta
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from rest_framework.views import APIView
@@ -24,26 +25,27 @@ logger = logging.getLogger(__name__)
 def activate_subscription(payment, flw_ref=None):
     """
     Activates user subscription for a payment.
-    Idempotent: does nothing if payment is already SUCCESS.
+    Idempotent: does nothing if payment is already SUCCESS and subscription is live.
     Returns (success: bool, message: str)
     """
-    # Idempotency check - don't activate twice
+    # Idempotency check — skip only if subscription is already live
     if payment.status == 'SUCCESS':
         subscription = UserSubscription.objects.filter(user=payment.user, plan=payment.plan, status='ACTIVE').first()
         if subscription and subscription.end_date > timezone.now():
             return True, 'Subscription already active'
 
-    payment.status = 'SUCCESS'
-    payment.flw_ref = flw_ref or 'UNKNOWN'
-    payment.save()
+    with transaction.atomic():
+        payment.status = 'SUCCESS'
+        payment.flw_ref = flw_ref or 'UNKNOWN'
+        payment.save()
 
-    plan = payment.plan
-    end_date = timezone.now() + timedelta(days=plan.duration_days)
-    UserSubscription.objects.update_or_create(
-        user=payment.user,
-        plan=plan,
-        defaults={'status': 'ACTIVE', 'end_date': end_date},
-    )
+        plan = payment.plan
+        end_date = timezone.now() + timedelta(days=plan.duration_days)
+        UserSubscription.objects.update_or_create(
+            user=payment.user,
+            plan=plan,
+            defaults={'status': 'ACTIVE', 'end_date': end_date},
+        )
     return True, 'Subscription activated'
 
 
@@ -96,8 +98,8 @@ def verify_payment_invariants(payment, flw_data):
     flw_email = customer.get('email', '').lower() if isinstance(customer, dict) else ''
     payment_email = payment.user.email.lower()
     if flw_email and flw_email != payment_email:
-        logger.warning(f'Customer email mismatch: expected {payment_email}, got {flw_email}')
-        # Email mismatch is a warning, not a hard failure (Flutterwave sometimes masks email)
+        logger.error(f'SECURITY: customer email mismatch: expected {payment_email}, got {flw_email}')
+        return False, f'Customer email mismatch: payment does not belong to this account'
 
     return True, None
 
@@ -113,13 +115,19 @@ class InitiatePaymentView(APIView):
             except SubscriptionPlan.DoesNotExist:
                 return Response({'error': 'Plan not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-            tx_ref = f'MSB-{uuid.uuid4().hex[:12].upper()}'
-            payment = Payment.objects.create(
-                user=request.user,
-                plan=plan,
-                amount=plan.price,
-                tx_ref=tx_ref,
-            )
+            # Re-use an existing PENDING payment so a user can't create unlimited records
+            existing = Payment.objects.filter(user=request.user, plan=plan, status='PENDING').first()
+            if existing:
+                tx_ref = existing.tx_ref
+                payment = existing
+            else:
+                tx_ref = f'MSB-{uuid.uuid4().hex[:12].upper()}'
+                payment = Payment.objects.create(
+                    user=request.user,
+                    plan=plan,
+                    amount=plan.price,
+                    tx_ref=tx_ref,
+                )
 
             payload = {
                 'tx_ref': tx_ref,
@@ -137,10 +145,11 @@ class InitiatePaymentView(APIView):
             }
 
             # ── TEST MODE: skip Flutterwave, return a fake payment link ──────────
-            if getattr(settings, 'PAYMENT_TEST_MODE', True):
+            if getattr(settings, 'PAYMENT_TEST_MODE', False):
+                base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000').rstrip('/')
                 return Response({
                     'message': '[TEST MODE] Payment initiated. Use /verify/ with this tx_ref to activate subscription.',
-                    'payment_link': f'http://localhost:8000/api/payments/mock-pay/?tx_ref={tx_ref}',
+                    'payment_link': f'{base_url}/api/payments/mock-pay/?tx_ref={tx_ref}',
                     'tx_ref': tx_ref,
                 })
 
@@ -150,6 +159,7 @@ class InitiatePaymentView(APIView):
                     'https://api.flutterwave.com/v3/payments',
                     json=payload,
                     headers=headers,
+                    timeout=(10, 30),
                 )
                 data = response.json()
                 if data.get('status') == 'success':
@@ -166,6 +176,14 @@ class InitiatePaymentView(APIView):
 
 class VerifyPaymentView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Flutterwave redirects here after payment with ?tx_ref=&transaction_id=&status=
+        The Flutter app's WebView detects this URL and triggers its own POST verify call.
+        This GET simply returns 200 so the WebView doesn't see a 405 error page.
+        """
+        return Response({'status': 'redirect_received'})
 
     def post(self, request):
         tx_ref = request.data.get('tx_ref')
@@ -185,7 +203,7 @@ class VerifyPaymentView(APIView):
                 return Response({'message': 'Payment already verified. Subscription active.'})
 
         # ── TEST MODE: skip Flutterwave, immediately activate subscription ──────
-        if getattr(settings, 'PAYMENT_TEST_MODE', True):
+        if getattr(settings, 'PAYMENT_TEST_MODE', False):
             if not transaction_id:
                 return Response({'error': 'transaction_id is required in test mode'}, status=status.HTTP_400_BAD_REQUEST)
             success, message = activate_subscription(payment, transaction_id)
@@ -196,6 +214,7 @@ class VerifyPaymentView(APIView):
             response = requests.get(
                 f'https://api.flutterwave.com/v3/transactions/{transaction_id}/verify',
                 headers=headers,
+                timeout=(10, 30),
             )
             data = response.json()
 

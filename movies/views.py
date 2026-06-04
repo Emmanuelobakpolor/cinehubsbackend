@@ -23,6 +23,7 @@ from .serializers import (
     WatchHistorySerializer, SavedMovieSerializer, MovieDownloadSerializer,
 )
 from subscriptions.models import SubscriptionPlan, UserSubscription
+from payments.models import Payment
 
 
 logger = logging.getLogger(__name__)
@@ -378,11 +379,10 @@ class DownloadCheckView(APIView):
 class ConfirmDownloadView(APIView):
     """
     POST /api/movies/<pk>/confirm-download/
-    Body: { "payment_reference": "optional_ref" }
+    Body: { "payment_reference": "<tx_ref from a completed BASIC payment>" }
 
-    Placeholder endpoint — marks a movie as paid for the requesting user.
-    Replace body logic with real gateway webhook verification later.
-    Returns the same 'allowed' response as DownloadCheckView.
+    Grants per-movie access only after verifying a real, successful BASIC payment
+    that belongs to the requesting user.  Premium users bypass this check.
     """
     permission_classes = [IsAuthenticated]
 
@@ -402,24 +402,55 @@ class ConfirmDownloadView(APIView):
                 'download_url': movie.movie_file if movie.movie_file else '',
             })
 
+        # Already paid for this specific movie — idempotent re-entry
+        existing_download = MovieDownload.objects.filter(user=request.user, movie=movie).first()
+        if existing_download:
+            return Response({
+                'status': 'allowed',
+                'reason': 'already_paid',
+                'download_url': movie.movie_file if movie.movie_file else '',
+                'amount_paid': str(existing_download.amount_paid),
+            })
+
+        # Validate the supplied payment reference against a real completed BASIC payment
+        payment_reference = request.data.get('payment_reference', '').strip()
+        if not payment_reference:
+            return Response(
+                {'error': 'payment_reference is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             basic_plan = SubscriptionPlan.objects.get(name='BASIC')
-            amount = basic_plan.price
         except SubscriptionPlan.DoesNotExist:
-            amount = '200.00'
+            return Response(
+                {'error': 'BASIC plan not configured on server.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-        download, created = MovieDownload.objects.get_or_create(
+        payment = Payment.objects.filter(
+            tx_ref=payment_reference,
+            user=request.user,
+            plan=basic_plan,
+            status='SUCCESS',
+        ).first()
+
+        if not payment:
+            return Response(
+                {'error': 'No verified BASIC payment found for this reference.'},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
+        download = MovieDownload.objects.create(
             user=request.user,
             movie=movie,
-            defaults={
-                'amount_paid': amount,
-                'payment_reference': request.data.get('payment_reference', ''),
-            },
+            amount_paid=basic_plan.price,
+            payment_reference=payment_reference,
         )
 
         return Response({
             'status': 'allowed',
-            'reason': 'paid' if created else 'already_paid',
+            'reason': 'paid',
             'download_url': movie.movie_file if movie.movie_file else '',
             'amount_paid': str(download.amount_paid),
         }, status=status.HTTP_200_OK)

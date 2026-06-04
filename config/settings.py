@@ -169,6 +169,12 @@ SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 # Set PAYMENT_TEST_MODE=True only for local/dev testing.
 # In production this should remain False.
 PAYMENT_TEST_MODE = config('PAYMENT_TEST_MODE', default=False, cast=bool)
+# BASE_URL: root URL of this backend, used to build the test-mode mock payment link.
+# In production set this to your deployed backend URL.
+BASE_URL = config('BASE_URL', default='http://localhost:8000')
+# PAYMENT_REDIRECT_URL: URL Flutterwave redirects to after payment.
+# The Flutter WebView detects this URL via onLoadStop and triggers its own /verify/ POST.
+# Must be a GET-capable URL; the backend /api/payments/verify/ endpoint now accepts GET for this.
 PAYMENT_REDIRECT_URL = config(
     'PAYMENT_REDIRECT_URL',
     default='https://web-production-a39f0a.up.railway.app/api/payments/verify/'
@@ -186,6 +192,14 @@ CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'expire-subscriptions-daily': {
+        'task': 'subscriptions.tasks.expire_subscriptions',
+        'schedule': crontab(hour=0, minute=0),  # runs daily at midnight UTC
+    },
+}
 
 # ─── HTTPS / SECURITY HEADERS ─────────────────────────────────────────────────
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
