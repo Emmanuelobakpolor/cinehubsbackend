@@ -175,13 +175,19 @@ class InitiatePaymentView(APIView):
 
 
 class VerifyPaymentView(APIView):
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # Flutterwave's redirect is an unauthenticated browser GET — allow it.
+        # The actual payment verification always comes from a separate POST with a JWT.
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get(self, request):
         """
         Flutterwave redirects here after payment with ?tx_ref=&transaction_id=&status=
-        The Flutter app's WebView detects this URL and triggers its own POST verify call.
-        This GET simply returns 200 so the WebView doesn't see a 405 error page.
+        The Flutter WebView detects this URL via onLoadStop and fires a separate POST
+        to /verify/. This GET just returns 200 so the WebView sees a clean page.
         """
         return Response({'status': 'redirect_received'})
 
@@ -248,9 +254,13 @@ class FlutterwaveWebhookView(APIView):
         # Get raw body for signature verification
         raw_body = request.body
 
-        # Verify Flutterwave signature
+        # Verify Flutterwave signature.
+        # Flutterwave sends the "Secret Hash" (configured in dashboard → Webhooks)
+        # as the Verif-Hash header. Use FLW_WEBHOOK_SECRET if set; fall back to
+        # FLW_SECRET_KEY for backwards compatibility.
+        webhook_secret = getattr(settings, 'FLW_WEBHOOK_SECRET', '') or settings.FLW_SECRET_KEY
         signature = request.headers.get('Verif-Hash') or request.headers.get('x-flw-signature')
-        if not verify_flutterwave_signature(raw_body, signature, settings.FLW_SECRET_KEY):
+        if not verify_flutterwave_signature(raw_body, signature, webhook_secret):
             # In production, reject unsigned webhooks
             if not getattr(settings, 'PAYMENT_TEST_MODE', False):
                 logger.warning('Invalid Flutterwave webhook signature rejected')

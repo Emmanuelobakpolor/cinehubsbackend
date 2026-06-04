@@ -182,6 +182,10 @@ PAYMENT_REDIRECT_URL = config(
 FLW_PUBLIC_KEY = config('FLW_PUBLIC_KEY', default='')
 FLW_SECRET_KEY = config('FLW_SECRET_KEY', default='')
 FLW_ENCRYPTION_KEY = config('FLW_ENCRYPTION_KEY', default='')
+# FLW_WEBHOOK_SECRET is the "Secret Hash" from Flutterwave Dashboard → Settings → Webhooks.
+# This is DIFFERENT from FLW_SECRET_KEY. Set it to the value you entered in the Flutterwave
+# webhook configuration so webhook signatures can be verified correctly.
+FLW_WEBHOOK_SECRET = config('FLW_WEBHOOK_SECRET', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
