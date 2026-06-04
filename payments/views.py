@@ -115,19 +115,24 @@ class InitiatePaymentView(APIView):
             except SubscriptionPlan.DoesNotExist:
                 return Response({'error': 'Plan not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Re-use an existing PENDING payment so a user can't create unlimited records
-            existing = Payment.objects.filter(user=request.user, plan=plan, status='PENDING').first()
-            if existing:
-                tx_ref = existing.tx_ref
-                payment = existing
-            else:
-                tx_ref = f'MSB-{uuid.uuid4().hex[:12].upper()}'
-                payment = Payment.objects.create(
-                    user=request.user,
-                    plan=plan,
-                    amount=plan.price,
-                    tx_ref=tx_ref,
-                )
+            # Mark stale PENDING payments (> 30 min old) as FAILED to keep the DB tidy.
+            # We do NOT reuse existing tx_refs because Flutterwave marks a link as
+            # expired once its underlying transaction is completed — reusing a tx_ref
+            # that was already paid causes "This link has expired" on retry.
+            Payment.objects.filter(
+                user=request.user,
+                plan=plan,
+                status='PENDING',
+                created_at__lt=timezone.now() - timedelta(minutes=30),
+            ).update(status='FAILED')
+
+            tx_ref = f'MSB-{uuid.uuid4().hex[:12].upper()}'
+            payment = Payment.objects.create(  # noqa: F841
+                user=request.user,
+                plan=plan,
+                amount=plan.price,
+                tx_ref=tx_ref,
+            )
 
             payload = {
                 'tx_ref': tx_ref,
