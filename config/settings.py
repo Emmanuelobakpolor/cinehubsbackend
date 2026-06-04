@@ -166,9 +166,13 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='admin@lexisdevelopmen
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 
 # ─── FLUTTERWAVE ───────────────────────────────────────────────────────────────
-# Set PAYMENT_TEST_MODE=False in .env once you have real Flutterwave keys.
-# While True, /api/payments/initiate/ and /verify/ work without hitting Flutterwave.
-PAYMENT_TEST_MODE = config('PAYMENT_TEST_MODE', default=True, cast=bool)
+# Set PAYMENT_TEST_MODE=True only for local/dev testing.
+# In production this should remain False.
+PAYMENT_TEST_MODE = config('PAYMENT_TEST_MODE', default=False, cast=bool)
+PAYMENT_REDIRECT_URL = config(
+    'PAYMENT_REDIRECT_URL',
+    default='https://web-production-a39f0a.up.railway.app/api/payments/verify/'
+)
 FLW_PUBLIC_KEY = config('FLW_PUBLIC_KEY', default='')
 FLW_SECRET_KEY = config('FLW_SECRET_KEY', default='')
 FLW_ENCRYPTION_KEY = config('FLW_ENCRYPTION_KEY', default='')

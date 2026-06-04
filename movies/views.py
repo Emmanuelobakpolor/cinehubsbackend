@@ -104,6 +104,17 @@ class CategoryListCreateView(generics.ListCreateAPIView):
         return [IsAuthenticated()]
 
 
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET / PATCH / DELETE a single category. Admin-only for write operations."""
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
+
+
 class MovieListCreateView(generics.ListCreateAPIView):
     queryset = Movie.objects.all().order_by('-created_at')
     serializer_class = MovieSerializer

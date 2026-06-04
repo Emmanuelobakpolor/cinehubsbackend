@@ -53,12 +53,15 @@ class AllSubscribersView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         from django.utils import timezone
-        qs = self.get_queryset()
-        total = qs.count()
-        basic = qs.filter(plan__name='BASIC').count()
-        premium = qs.filter(plan__name='PREMIUM').count()
-        active = qs.filter(status='ACTIVE', end_date__gt=timezone.now()).count()
-        serializer = self.get_serializer(qs, many=True)
+        # Counts always reflect ALL subscriptions regardless of active filter
+        all_qs = UserSubscription.objects.select_related('user', 'plan')
+        total = all_qs.count()
+        basic = all_qs.filter(plan__name='BASIC').count()
+        premium = all_qs.filter(plan__name='PREMIUM').count()
+        active = all_qs.filter(status='ACTIVE', end_date__gt=timezone.now()).count()
+        # Results respect the requested filter
+        filtered_qs = self.get_queryset()
+        serializer = self.get_serializer(filtered_qs, many=True)
         return Response({
             'counts': {
                 'total': total,
