@@ -186,7 +186,9 @@ class VerifyPaymentView(APIView):
 
         # ── TEST MODE: skip Flutterwave, immediately activate subscription ──────
         if getattr(settings, 'PAYMENT_TEST_MODE', True):
-            success, message = activate_subscription(payment, 'TEST-MODE')
+            if not transaction_id:
+                return Response({'error': 'transaction_id is required in test mode'}, status=status.HTTP_400_BAD_REQUEST)
+            success, message = activate_subscription(payment, transaction_id)
             return Response({'message': f'[TEST MODE] {message}'})
 
         headers = {'Authorization': f'Bearer {settings.FLW_SECRET_KEY}'}

@@ -1,3 +1,19 @@
+# Payment Usage Audit TODO
+
+- [x] Step 1: Audit subscription payment entry points and service usage
+- [x] Step 2: Harden payment completion flow (avoid premature verification, handle success/failure redirects)
+- [ ] Step 3: Run critical-path validation for payment flow and compile
+
+---
+
+# WebView Build Fix TODO
+
+- [x] Step 1: Replace deprecated/mismatched `InAppWebViewOptions` usage in `payment_completion_screen.dart`
+- [x] Step 2: Wrap options with `InAppWebViewGroupOptions(crossPlatform: ...)`
+- [x] Step 3: Verify no other `initialOptions` mismatches remain in Flutter codebase
+
+---
+
 # Payment Flow Hardening TODO
 
 - [x] Step 1: Harden payment configuration defaults in `config/settings.py`

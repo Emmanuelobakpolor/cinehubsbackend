@@ -1,4 +1,4 @@
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -71,3 +71,53 @@ class AllSubscribersView(generics.ListAPIView):
             },
             'results': serializer.data,
         })
+
+
+class InitializePlansView(APIView):
+    """
+    POST /api/subscriptions/initialize-plans/
+    Admin-only endpoint to create BASIC and PREMIUM plans if they don't exist.
+    Useful for initial setup after migrations.
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        plans_created = []
+
+        # Create BASIC plan (₦200 per movie)
+        basic, created = SubscriptionPlan.objects.get_or_create(
+            name='BASIC',
+            defaults={
+                'price': 200,
+                'duration_days': 1,
+                'description': 'Pay per movie - ₦200 charged at download time.',
+            }
+        )
+        plans_created.append({
+            'name': 'BASIC',
+            'price': float(basic.price),
+            'id': basic.id,
+            'created': created,
+        })
+
+        # Create PREMIUM plan (₦5,500 per month)
+        premium, created = SubscriptionPlan.objects.get_or_create(
+            name='PREMIUM',
+            defaults={
+                'price': 5500,
+                'duration_days': 30,
+                'description': 'Unlimited access to all movies for 30 days - ₦5,500 per month.',
+            }
+        )
+        plans_created.append({
+            'name': 'PREMIUM',
+            'price': float(premium.price),
+            'id': premium.id,
+            'created': created,
+        })
+
+        return Response({
+            'message': 'Subscription plans initialized successfully',
+            'plans': plans_created,
+        }, status=status.HTTP_200_OK)
+
