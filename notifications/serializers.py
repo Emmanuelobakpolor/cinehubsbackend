@@ -12,6 +12,7 @@ class NotificationSerializer(serializers.ModelSerializer):
 class BroadcastSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     message = serializers.CharField()
+    target_audience = serializers.ChoiceField(choices=['ALL', 'BASIC', 'PREMIUM'], default='ALL')
 
 
 class DeviceTokenSerializer(serializers.ModelSerializer):

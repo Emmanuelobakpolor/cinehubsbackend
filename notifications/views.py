@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from django.db.models import Q
 
 from .models import Notification, DeviceToken
 from .serializers import NotificationSerializer, BroadcastSerializer, DeviceTokenSerializer
@@ -12,13 +13,27 @@ class MyNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from subscriptions.models import UserSubscription
+        from django.utils import timezone
+
+        active_sub = (
+            UserSubscription.objects
+            .filter(user=request.user, status='ACTIVE', end_date__gt=timezone.now())
+            .select_related('plan')
+            .order_by('-start_date')
+            .first()
+        )
+        user_plan = active_sub.plan.name if active_sub else None
+
+        audience_filter = ['ALL']
+        if user_plan:
+            audience_filter.append(user_plan)
+
         notifications = Notification.objects.filter(
-            recipient=request.user
-        ).order_by('-created_at') | Notification.objects.filter(
-            notification_type='BROADCAST',
-            recipient__isnull=True,
-        ).order_by('-created_at')
-        notifications = notifications.distinct().order_by('-created_at')
+            Q(recipient=request.user) |
+            Q(notification_type='BROADCAST', recipient__isnull=True, target_audience__in=audience_filter)
+        ).distinct().order_by('-created_at')
+
         serializer = NotificationSerializer(notifications, many=True)
         return Response(serializer.data)
 
@@ -35,6 +50,15 @@ class MyNotificationsView(APIView):
 class BroadcastView(APIView):
     permission_classes = [IsAdminUser]
 
+    def get(self, request):
+        broadcasts = (
+            Notification.objects
+            .filter(notification_type='BROADCAST', recipient__isnull=True)
+            .order_by('-created_at')
+        )
+        serializer = NotificationSerializer(broadcasts, many=True)
+        return Response(serializer.data)
+
     def post(self, request):
         serializer = BroadcastSerializer(data=request.data)
         if serializer.is_valid():
@@ -43,8 +67,9 @@ class BroadcastView(APIView):
                 title=serializer.validated_data['title'],
                 message=serializer.validated_data['message'],
                 notification_type='BROADCAST',
+                target_audience=serializer.validated_data.get('target_audience', 'ALL'),
             )
-            return Response({'message': 'Broadcast sent to all users.'}, status=status.HTTP_201_CREATED)
+            return Response({'message': 'Broadcast sent.'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

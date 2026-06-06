@@ -1,7 +1,6 @@
 import uuid
 import logging
 import hmac
-import hashlib
 import json
 import requests
 from datetime import timedelta
@@ -49,23 +48,16 @@ def activate_subscription(payment, flw_ref=None):
     return True, 'Subscription activated'
 
 
-def verify_flutterwave_signature(request_body, signature, secret_key):
+def verify_flutterwave_signature(signature, secret_hash):
     """
-    Verifies Flutterwave webhook signature using HMAC-SHA256.
-    Returns True if signature is valid, False otherwise.
+    Flutterwave webhook verification is plain string equality:
+        request.headers["verif-hash"]  ==  FLW_WEBHOOK_SECRET
+    No HMAC, no body signing. hmac.compare_digest is used only to prevent
+    timing-based attacks on the comparison itself.
     """
-    if not signature or not secret_key:
+    if not signature or not secret_hash:
         return False
-
-    # Compute expected signature
-    expected_signature = hmac.new(
-        secret_key.encode(),
-        request_body,
-        hashlib.sha256
-    ).hexdigest()
-
-    # Use constant-time comparison to prevent timing attacks
-    return hmac.compare_digest(expected_signature, signature)
+    return hmac.compare_digest(signature, secret_hash)
 
 
 def verify_payment_invariants(payment, flw_data):
@@ -256,19 +248,29 @@ class FlutterwaveWebhookView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Get raw body for signature verification
-        raw_body = request.body
+        webhook_secret = getattr(settings, 'FLW_WEBHOOK_SECRET', '')
+        signature = request.headers.get('verif-hash')
 
-        # Verify Flutterwave signature.
-        # Flutterwave sends the "Secret Hash" (configured in dashboard → Webhooks)
-        # as the Verif-Hash header. Use FLW_WEBHOOK_SECRET if set; fall back to
-        # FLW_SECRET_KEY for backwards compatibility.
-        webhook_secret = getattr(settings, 'FLW_WEBHOOK_SECRET', '') or settings.FLW_SECRET_KEY
-        signature = request.headers.get('Verif-Hash') or request.headers.get('x-flw-signature')
-        if not verify_flutterwave_signature(raw_body, signature, webhook_secret):
-            # In production, reject unsigned webhooks
+        logger.debug(
+            "Flutterwave webhook headers received",
+            extra={
+                "headers": {k: v for k, v in request.headers.items()
+                            if k.lower() not in ('authorization', 'cookie')},
+                "verif_hash_present": bool(signature),
+                "webhook_secret_configured": bool(webhook_secret),
+            },
+        )
+
+        if not verify_flutterwave_signature(signature, webhook_secret):
+            logger.warning(
+                "Invalid Flutterwave webhook signature rejected",
+                extra={
+                    "verif_hash_present": bool(signature),
+                    "webhook_secret_configured": bool(webhook_secret),
+                    "path": request.path,
+                },
+            )
             if not getattr(settings, 'PAYMENT_TEST_MODE', False):
-                logger.warning('Invalid Flutterwave webhook signature rejected')
                 return Response({'error': 'Invalid signature'}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Parse webhook data
@@ -295,20 +297,29 @@ class FlutterwaveWebhookView(APIView):
                 return Response({"status": "acknowledged"}, status=status.HTTP_200_OK)
 
             try:
-                payment = Payment.objects.get(tx_ref=tx_ref)
+                with transaction.atomic():
+                    # select_for_update locks the row so concurrent webhook
+                    # retries for the same tx_ref wait rather than double-process.
+                    payment = Payment.objects.select_for_update().get(tx_ref=tx_ref)
+
+                    # Idempotency: skip if already processed
+                    if payment.status == 'SUCCESS':
+                        logger.info(f'Webhook: payment {tx_ref} already processed, skipping')
+                        return Response({"status": "acknowledged"}, status=status.HTTP_200_OK)
+
+                    # Payment invariant checks
+                    is_valid, error_msg = verify_payment_invariants(payment, data)
+                    if not is_valid:
+                        logger.error(f'Webhook payment invariant check failed: {error_msg}')
+                        return Response({"status": "error", "message": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+                    # Activate subscription
+                    _, message = activate_subscription(payment, data.get('flw_ref'))
+                    logger.info(f'Webhook subscription activation: {message}')
+
             except Payment.DoesNotExist:
                 logger.error(f'Webhook: Payment not found for tx_ref: {tx_ref}')
                 return Response({"status": "acknowledged"}, status=status.HTTP_200_OK)
-
-            # Payment invariant checks
-            is_valid, error_msg = verify_payment_invariants(payment, data)
-            if not is_valid:
-                logger.error(f'Webhook payment invariant check failed: {error_msg}')
-                return Response({"status": "error", "message": error_msg}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Activate subscription (idempotent)
-            success, message = activate_subscription(payment, data.get('flw_ref'))
-            logger.info(f'Webhook subscription activation: {message}')
 
         return Response({"status": "acknowledged"}, status=status.HTTP_200_OK)
 

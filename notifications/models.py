@@ -18,7 +18,14 @@ class Notification(models.Model):
     )
     title = models.CharField(max_length=255)
     message = models.TextField()
+    AUDIENCE_CHOICES = (
+        ('ALL',     'All Users'),
+        ('BASIC',   'Basic Subscribers'),
+        ('PREMIUM', 'Premium Subscribers'),
+    )
+
     notification_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='PERSONAL')
+    target_audience = models.CharField(max_length=20, choices=AUDIENCE_CHOICES, default='ALL')
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
