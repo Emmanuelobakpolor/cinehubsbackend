@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
+from django.http import HttpResponse
 from django.utils import timezone
 
 from rest_framework.views import APIView
@@ -182,11 +183,60 @@ class VerifyPaymentView(APIView):
 
     def get(self, request):
         """
-        Flutterwave redirects here after payment with ?tx_ref=&transaction_id=&status=
+        Flutterwave redirects the user's browser here after payment completes.
+        Returns a styled HTML page instead of raw JSON so users see something clean.
         The Flutter WebView detects this URL via onLoadStop and fires a separate POST
-        to /verify/. This GET just returns 200 so the WebView sees a clean page.
+        to /verify/ for actual subscription activation — this GET is display-only.
         """
-        return Response({'status': 'redirect_received'})
+        tx_ref = request.query_params.get('tx_ref', '')
+        payment_status = request.query_params.get('status', '')
+        is_success = payment_status == 'successful'
+        is_failed = payment_status in ('failed', 'cancelled')
+
+        icon = '✅' if is_success else ('❌' if is_failed else '⏳')
+        heading = (
+            'Payment Successful!' if is_success else
+            'Payment Failed' if is_failed else
+            'Payment Received'
+        )
+        body_text = (
+            'Your subscription is being activated. Please return to the Cinehubs app.'
+            if is_success else
+            'Something went wrong with your payment. Please try again in the app.'
+            if is_failed else
+            'Your payment has been received and is being processed.'
+        )
+        ref_html = (
+            f'<p style="margin-top:8px;font-size:11px;color:#444">Ref: {tx_ref}</p>'
+            if tx_ref else ''
+        )
+
+        html = (
+            '<!DOCTYPE html><html lang="en"><head>'
+            '<meta charset="UTF-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1.0">'
+            '<title>Payment — Cinehubs</title>'
+            '<style>'
+            '*{box-sizing:border-box;margin:0;padding:0}'
+            'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
+            'background:#0f0f0f;color:#fff;display:flex;align-items:center;'
+            'justify-content:center;min-height:100vh;padding:24px}'
+            '.card{background:#1a1a1a;border-radius:24px;padding:48px 32px;'
+            'text-align:center;max-width:420px;width:100%;border:1px solid #2a2a2a}'
+            '.icon{font-size:56px;margin-bottom:20px}'
+            'h1{font-size:22px;font-weight:700;margin-bottom:10px}'
+            'p{color:#888;font-size:14px;line-height:1.6}'
+            '.note{margin-top:24px;color:#555;font-size:12px}'
+            '</style></head>'
+            '<body><div class="card">'
+            f'<div class="icon">{icon}</div>'
+            f'<h1>{heading}</h1>'
+            f'<p>{body_text}</p>'
+            f'{ref_html}'
+            '<p class="note">You may close this window and return to the app.</p>'
+            '</div></body></html>'
+        )
+        return HttpResponse(html, content_type='text/html')
 
     def post(self, request):
         tx_ref = request.data.get('tx_ref')
@@ -248,16 +298,18 @@ class FlutterwaveWebhookView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        webhook_secret = getattr(settings, 'FLW_WEBHOOK_SECRET', '')
-        signature = request.headers.get('verif-hash')
+        # Strip to catch accidental whitespace/newlines when copy-pasting into Railway
+        webhook_secret = getattr(settings, 'FLW_WEBHOOK_SECRET', '').strip()
+        signature = (request.headers.get('verif-hash') or '').strip()
 
         logger.debug(
-            "Flutterwave webhook headers received",
+            "Flutterwave webhook received",
             extra={
-                "headers": {k: v for k, v in request.headers.items()
-                            if k.lower() not in ('authorization', 'cookie')},
                 "verif_hash_present": bool(signature),
                 "webhook_secret_configured": bool(webhook_secret),
+                "received_hash": signature,
+                "configured_hash_length": len(webhook_secret),
+                "received_hash_length": len(signature),
             },
         )
 
@@ -265,9 +317,11 @@ class FlutterwaveWebhookView(APIView):
             logger.warning(
                 "Invalid Flutterwave webhook signature rejected",
                 extra={
-                    "verif_hash_present": bool(signature),
-                    "webhook_secret_configured": bool(webhook_secret),
                     "path": request.path,
+                    "received_hash": signature,
+                    "received_hash_length": len(signature),
+                    "configured_hash_length": len(webhook_secret),
+                    "match": signature == webhook_secret,
                 },
             )
             if not getattr(settings, 'PAYMENT_TEST_MODE', False):
