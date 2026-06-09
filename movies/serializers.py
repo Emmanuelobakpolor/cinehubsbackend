@@ -13,6 +13,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class MovieSerializer(serializers.ModelSerializer):
     category_names = serializers.SerializerMethodField(read_only=True)
     uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True)
+    purchase_count = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Movie
@@ -21,6 +22,13 @@ class MovieSerializer(serializers.ModelSerializer):
 
     def get_category_names(self, obj):
         return list(obj.categories.values_list('name', flat=True))
+
+    def get_purchase_count(self, obj):
+        # Only count records where money was exchanged (amount_paid > 0).
+        # Premium users get MovieDownload rows with amount_paid=0 (free access) —
+        # those are excluded so this always reflects per-movie paid purchases only,
+        # regardless of what the BASIC plan price is set to.
+        return obj.downloads.filter(amount_paid__gt=0).count()
 
     def create(self, validated_data):
         validated_data['uploaded_by'] = self.context['request'].user

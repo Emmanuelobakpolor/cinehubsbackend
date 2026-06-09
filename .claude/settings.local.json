@@ -31,7 +31,8 @@
       "Bash(npm run *)",
       "Bash(Get-ChildItem -Recurse -Filter \"*.tsx\" -File)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(git submodule *)"
+      "Bash(git submodule *)",
+      "Bash(dir c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend)"
     ]
   }
 }

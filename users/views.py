@@ -243,6 +243,94 @@ class ChangePasswordView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AdminAllUsersView(APIView):
+    """Admin-only: list all non-staff users with full profile + subscription + purchase stats."""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        from subscriptions.models import UserSubscription
+        from movies.models import MovieDownload
+        from django.db.models import Count, Q, Prefetch
+
+        users = (
+            User.objects.filter(is_staff=False)
+            .annotate(
+                # Only count per-movie paid purchases (amount_paid > 0).
+                # Premium "free" downloads have amount_paid=0 and are excluded here.
+                movies_bought=Count(
+                    'movie_downloads',
+                    filter=Q(movie_downloads__amount_paid__gt=0),
+                    distinct=True,
+                )
+            )
+            .prefetch_related(
+                Prefetch(
+                    'subscriptions',
+                    queryset=UserSubscription.objects.select_related('plan').order_by('-start_date'),
+                    to_attr='_subs',
+                )
+            )
+            .order_by('-date_joined')
+        )
+
+        results = []
+        for user in users:
+            sub = user._subs[0] if user._subs else None
+            full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+            results.append({
+                'id': user.id,
+                'full_name': full_name,
+                'username': user.username,
+                'email': user.email,
+                'phone_number': user.phone_number or '',
+                'profile_picture': user.profile_picture or '',
+                'is_email_verified': user.is_email_verified,
+                'is_active': user.is_active,
+                'date_joined': user.date_joined.isoformat(),
+                'subscription': {
+                    'plan': sub.plan.name,
+                    'status': sub.status,
+                    'is_active': sub.is_active,
+                    'end_date': sub.end_date.isoformat(),
+                } if sub else None,
+                'movies_bought': user.movies_bought,
+            })
+
+        return Response({'count': len(results), 'results': results})
+
+
+class AdminUpdateAccountView(APIView):
+    """Admin-only: change own email and/or password without OTP verification."""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def patch(self, request):
+        user = request.user
+        new_email = request.data.get('email', '').strip()
+        new_password = request.data.get('new_password', '').strip()
+        current_password = request.data.get('current_password', '').strip()
+
+        if new_email:
+            if User.objects.exclude(pk=user.pk).filter(email=new_email).exists():
+                return Response({'error': 'That email is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+            user.email = new_email
+            user.username = new_email
+
+        if new_password:
+            if not current_password:
+                return Response({'error': 'Current password is required to set a new password.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not user.check_password(current_password):
+                return Response({'error': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(new_password) < 6:
+                return Response({'error': 'New password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(new_password)
+
+        user.save()
+        return Response({
+            'message': 'Account updated successfully.',
+            'email': user.email,
+        })
+
+
 class SendEmailOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
