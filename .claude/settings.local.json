@@ -25,7 +25,13 @@
       "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubsadmin/src\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
       "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.jsx\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
       "Bash(find \"/c/Users/USER/Documents/movie-streaming-backend/cinehubs/lib\" -type f \\\\\\( -name \"*.dart\" \\\\\\) -exec grep -l \"Verified\" {} \\\\;)",
-      "Bash(grep -E \"\\\\.\\(dart\\)$\")"
+      "Bash(grep -E \"\\\\.\\(dart\\)$\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.tsx\" -File)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(git submodule *)"
     ]
   }
 }

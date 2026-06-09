@@ -34,3 +34,36 @@
 All payment security hardening tasks are now complete. See:
 - `DEPLOYMENT_CHECKLIST.md` - Full deployment guide
 - `test_payment_flow.sh` - Test script for verifying the flow
+
+---
+
+# CineHubs Admin Dashboard Responsive Redesign TODO
+
+- [x] Step 1: Refactor layout shell for fluid, ultra-wide-safe container behavior
+- [x] Step 2: Redesign Topbar responsiveness across mobile/tablet/laptop/desktop
+- [x] Step 3: Refine desktop Sidebar and mobile drawer ergonomics/responsive widths
+- [x] Step 4: Rework dashboard stats, movie list/table, and pricing panel for all breakpoints
+- [x] Step 5: Run frontend build/type check and verify no regressions
+
+---
+
+# Admin Mobile Fit & No-Zoom UX TODO
+
+- [x] Step 1: Add global overflow-safe/mobile-fit guards in layout shell
+- [x] Step 2: Tighten Topbar small-screen spacing and overflow handling
+- [x] Step 3: Patch dashboard sections that can trigger horizontal overflow
+- [x] Step 4: Patch movies page header/list for narrow-screen wrapping
+- [x] Step 5: Run admin frontend build/typecheck
+
+---
+
+# Admin Dedicated Mobile Views TODO
+
+- [ ] Step 1: Implement explicit mobile-view section for dashboard page
+- [ ] Step 2: Implement explicit mobile-view section for movies page
+- [ ] Step 3: Implement explicit mobile-view section for upload-movie page
+- [ ] Step 4: Implement explicit mobile-view section for categories page
+- [ ] Step 5: Implement explicit mobile-view section for subscribers page
+- [ ] Step 6: Implement explicit mobile-view section for broadcast page
+- [ ] Step 7: Optimize AddMovieModal for smaller devices
+- [ ] Step 8: Run cinehubsadmin build/typecheck and confirm
