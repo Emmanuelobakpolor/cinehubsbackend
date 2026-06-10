@@ -33,7 +33,8 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(git submodule *)",
       "Bash(dir c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend)",
-      "Bash(Get-ChildItem -Recurse -Filter \"*.dart\" \"c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend\\\\cinehubs\\\\lib\\\\screens\")"
+      "Bash(Get-ChildItem -Recurse -Filter \"*.dart\" \"c:\\\\Users\\\\USER\\\\Documents\\\\movie-streaming-backend\\\\cinehubs\\\\lib\\\\screens\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
