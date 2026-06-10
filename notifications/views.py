@@ -1,12 +1,104 @@
+import json
+import logging
+import threading
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.models import Q
+from django.conf import settings
 
 from .models import Notification, DeviceToken
 from .serializers import NotificationSerializer, BroadcastSerializer, DeviceTokenSerializer
 from users.models import User
+
+logger = logging.getLogger(__name__)
+
+
+def _init_firebase():
+    """Initialise the firebase-admin SDK once. Returns True if ready."""
+    sa_json = getattr(settings, 'FIREBASE_SERVICE_ACCOUNT_JSON', '').strip()
+    if not sa_json:
+        return False
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+        try:
+            firebase_admin.get_app()
+        except ValueError:
+            cred = credentials.Certificate(json.loads(sa_json))
+            firebase_admin.initialize_app(cred)
+        return True
+    except Exception as e:
+        logger.error('Firebase init error: %s', e)
+        return False
+
+
+def _send_fcm(title: str, body: str, audience: str, tokens: list):
+    """Send a multicast FCM notification. Called in a background thread."""
+    if not tokens:
+        return
+    if not _init_firebase():
+        return
+    try:
+        from firebase_admin import messaging
+        msg = messaging.MulticastMessage(
+            tokens=tokens,
+            notification=messaging.Notification(title=title, body=body),
+            data={'type': 'BROADCAST', 'audience': audience},
+            android=messaging.AndroidConfig(
+                priority='high',
+                notification=messaging.AndroidNotification(
+                    channel_id='cinehubs_broadcasts',
+                    default_sound=True,
+                ),
+            ),
+            apns=messaging.APNSConfig(
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(sound='default', badge=1),
+                ),
+            ),
+        )
+        # FCM multicast is capped at 500 tokens per call
+        for i in range(0, len(tokens), 500):
+            batch = tokens[i:i + 500]
+            msg.tokens = batch
+            resp = messaging.send_each_for_multicast(msg)
+            # Remove stale tokens so we don't keep sending to uninstalled apps
+            if resp.failure_count > 0:
+                stale = [
+                    batch[j] for j, r in enumerate(resp.responses)
+                    if not r.success
+                ]
+                if stale:
+                    DeviceToken.objects.filter(token__in=stale).delete()
+                    logger.info('Removed %d stale FCM tokens', len(stale))
+    except Exception as e:
+        logger.error('FCM send error: %s', e)
+
+
+def _tokens_for_audience(audience: str) -> list:
+    """Return device tokens for the target audience."""
+    from django.utils import timezone
+    from subscriptions.models import UserSubscription
+
+    if audience == 'ALL':
+        user_ids = User.objects.filter(is_staff=False).values_list('id', flat=True)
+    elif audience == 'PREMIUM':
+        user_ids = UserSubscription.objects.filter(
+            plan__name='PREMIUM', status='ACTIVE', end_date__gt=timezone.now()
+        ).values_list('user_id', flat=True)
+    elif audience == 'BASIC':
+        user_ids = UserSubscription.objects.filter(
+            plan__name='BASIC', status='ACTIVE', end_date__gt=timezone.now()
+        ).values_list('user_id', flat=True)
+    else:
+        user_ids = []
+
+    return list(
+        DeviceToken.objects.filter(user_id__in=user_ids).values_list('token', flat=True)
+    )
 
 
 class MyNotificationsView(APIView):
@@ -62,13 +154,26 @@ class BroadcastView(APIView):
     def post(self, request):
         serializer = BroadcastSerializer(data=request.data)
         if serializer.is_valid():
+            title = serializer.validated_data['title']
+            message = serializer.validated_data['message']
+            audience = serializer.validated_data.get('target_audience', 'ALL')
+
             Notification.objects.create(
                 recipient=None,
-                title=serializer.validated_data['title'],
-                message=serializer.validated_data['message'],
+                title=title,
+                message=message,
                 notification_type='BROADCAST',
-                target_audience=serializer.validated_data.get('target_audience', 'ALL'),
+                target_audience=audience,
             )
+
+            # Send FCM push in background so the API response isn't delayed
+            tokens = _tokens_for_audience(audience)
+            threading.Thread(
+                target=_send_fcm,
+                args=(title, message, audience, tokens),
+                daemon=True,
+            ).start()
+
             return Response({'message': 'Broadcast sent.'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

@@ -191,6 +191,12 @@ FLW_WEBHOOK_SECRET = config('FLW_WEBHOOK_SECRET', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ─── FIREBASE (FCM push notifications) ────────────────────────────────────────
+# Set FIREBASE_SERVICE_ACCOUNT_JSON to the full JSON string of your Firebase
+# service account private key. Get it from Firebase Console → Project Settings
+# → Service Accounts → Generate new private key.
+FIREBASE_SERVICE_ACCOUNT_JSON = config('FIREBASE_SERVICE_ACCOUNT_JSON', default='')
+
 # ─── CELERY ───────────────────────────────────────────────────────────────────
 REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_BROKER_URL = REDIS_URL
