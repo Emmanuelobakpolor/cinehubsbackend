@@ -189,22 +189,21 @@ class VerifyPaymentView(APIView):
         to /verify/ for actual subscription activation — this GET is display-only.
         """
         tx_ref = request.query_params.get('tx_ref', '')
-        payment_status = request.query_params.get('status', '')
+        payment_status = request.query_params.get('status', '').lower()
         is_success = payment_status == 'successful'
         is_failed = payment_status in ('failed', 'cancelled')
-
-        icon = '✅' if is_success else ('❌' if is_failed else '⏳')
+        icon = '✅' if is_success else ('❌' if is_failed else '↩️')
         heading = (
             'Payment Successful!' if is_success else
-            'Payment Failed' if is_failed else
-            'Payment Received'
+            'Payment Not Completed' if is_failed else
+            'Payment Cancelled'
         )
         body_text = (
             'Your subscription is being activated. Please return to the Cinehubs app.'
             if is_success else
-            'Something went wrong with your payment. Please try again in the app.'
+            'Your payment did not go through. No money was deducted. Please try again in the app.'
             if is_failed else
-            'Your payment has been received and is being processed.'
+            'You closed the payment screen before completing. No money was deducted. You can try again in the app.'
         )
         ref_html = (
             f'<p style="margin-top:8px;font-size:11px;color:#444">Ref: {tx_ref}</p>'
