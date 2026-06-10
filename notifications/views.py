@@ -20,6 +20,7 @@ def _init_firebase():
     """Initialise the firebase-admin SDK once. Returns True if ready."""
     sa_json = getattr(settings, 'FIREBASE_SERVICE_ACCOUNT_JSON', '').strip()
     if not sa_json:
+        logger.warning('FIREBASE_SERVICE_ACCOUNT_JSON not set — FCM push disabled')
         return False
     try:
         import firebase_admin
@@ -29,6 +30,7 @@ def _init_firebase():
         except ValueError:
             cred = credentials.Certificate(json.loads(sa_json))
             firebase_admin.initialize_app(cred)
+            logger.info('Firebase Admin SDK initialised successfully')
         return True
     except Exception as e:
         logger.error('Firebase init error: %s', e)
@@ -38,7 +40,9 @@ def _init_firebase():
 def _send_fcm(title: str, body: str, audience: str, tokens: list):
     """Send a multicast FCM notification. Called in a background thread."""
     if not tokens:
+        logger.warning('FCM: no device tokens for audience=%s — push skipped', audience)
         return
+    logger.info('FCM: sending "%s" to %d token(s) for audience=%s', title, len(tokens), audience)
     if not _init_firebase():
         return
     try:
@@ -65,6 +69,10 @@ def _send_fcm(title: str, body: str, audience: str, tokens: list):
             batch = tokens[i:i + 500]
             msg.tokens = batch
             resp = messaging.send_each_for_multicast(msg)
+            logger.info(
+                'FCM batch %d: success=%d failure=%d',
+                i // 500 + 1, resp.success_count, resp.failure_count,
+            )
             # Remove stale tokens so we don't keep sending to uninstalled apps
             if resp.failure_count > 0:
                 stale = [
@@ -228,6 +236,28 @@ class AdminNotificationsView(APIView):
         """Mark all ADMIN notifications as read."""
         Notification.objects.filter(notification_type='ADMIN', is_read=False).update(is_read=True)
         return Response({'message': 'All marked as read.'})
+
+
+class AdminDeviceTokensView(APIView):
+    """
+    GET /api/notifications/admin/device-tokens/
+    Lists all stored device tokens — for debugging FCM.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        tokens = list(
+            DeviceToken.objects
+            .select_related('user')
+            .order_by('-id')
+            .values('id', 'user__email', 'platform', 'token', 'created_at')
+        )
+        # Truncate token strings so the response is readable in logs
+        for t in tokens:
+            raw = t['token'] or ''
+            t['token_preview'] = raw[:30] + '…' if len(raw) > 30 else raw
+            del t['token']
+        return Response({'count': len(tokens), 'tokens': tokens})
 
 
 class AdminAnalyticsView(APIView):

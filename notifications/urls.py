@@ -5,6 +5,7 @@ from .views import (
     RegisterDeviceTokenView,
     AdminAnalyticsView,
     AdminNotificationsView,
+    AdminDeviceTokensView,
 )
 
 urlpatterns = [
@@ -17,4 +18,5 @@ urlpatterns = [
     path('admin/', AdminNotificationsView.as_view()),
     path('admin/<int:pk>/read/', AdminNotificationsView.as_view()),
     path('admin/read-all/', AdminNotificationsView.as_view()),
+    path('admin/device-tokens/', AdminDeviceTokensView.as_view()),
 ]
