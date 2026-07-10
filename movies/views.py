@@ -50,12 +50,24 @@ def _upload_movie_files_to_cloudinary(data):
         if file_obj and hasattr(file_obj, 'read'):
             upload_start = time.time()
             try:
-                result = cloudinary.uploader.upload(
-                    file_obj,
-                    resource_type=resource_type,
-                    folder=folder,
-                    timeout=120,
-                )
+                if resource_type == 'video':
+                    # Large movie/trailer files need chunked upload; a single
+                    # request both exceeds Cloudinary's non-chunked size limit
+                    # and can't realistically finish within a short timeout.
+                    result = cloudinary.uploader.upload_large(
+                        file_obj,
+                        resource_type=resource_type,
+                        folder=folder,
+                        chunk_size=20_000_000,
+                        timeout=600,
+                    )
+                else:
+                    result = cloudinary.uploader.upload(
+                        file_obj,
+                        resource_type=resource_type,
+                        folder=folder,
+                        timeout=120,
+                    )
                 url = result.get('secure_url')
                 if not url:
                     raise ValueError(f"Cloudinary upload failed for {field_name}: no URL returned")
