@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', cast=bool)
 ALLOWED_HOSTS = [
-    'web-production-a39f0a.up.railway.app',
+    'web-production-3fa8c.up.railway.app',
     'localhost',
     '127.0.0.1',
 ]
@@ -140,7 +140,7 @@ FILE_UPLOAD_HANDLERS = ['django.core.files.uploadhandler.TemporaryFileUploadHand
 
 CORS_ALLOWED_ORIGINS = [
     "https://cinehubsadmin.cinehubsapp.workers.dev",
-    "https://web-production-a39f0a.up.railway.app",
+    "https://web-production-3fa8c.up.railway.app",
     "https://cinehubsadmin.vercel.app"
 ]
 CORS_ALLOW_CREDENTIALS = True
@@ -154,7 +154,7 @@ CORS_ALLOW_HEADERS = [
 
 CSRF_TRUSTED_ORIGINS = [
     "https://cinehubsadmin.cinehubsapp.workers.dev",
-    "https://web-production-a39f0a.up.railway.app",
+    "https://web-production-3fa8c.up.railway.app",
     "https://cinehubsadmin.vercel.app"
 ]
 
@@ -179,7 +179,7 @@ BASE_URL = config('BASE_URL', default='http://localhost:8000')
 # Must be a GET-capable URL; the backend /api/payments/verify/ endpoint now accepts GET for this.
 PAYMENT_REDIRECT_URL = config(
     'PAYMENT_REDIRECT_URL',
-    default='https://web-production-a39f0a.up.railway.app/api/payments/verify/'
+    default='https://web-production-3fa8c.up.railway.app/api/payments/verify/'
 )
 FLW_PUBLIC_KEY = config('FLW_PUBLIC_KEY', default='')
 FLW_SECRET_KEY = config('FLW_SECRET_KEY', default='')
