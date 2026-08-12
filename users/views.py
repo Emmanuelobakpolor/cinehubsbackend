@@ -102,8 +102,8 @@ class LoginView(APIView):
 
 
 class CreateAdminView(APIView):
-    """Admin-only: create a new admin (staff) account."""
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    """Create a new admin (staff) account. Open - no auth required."""
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegisterSerializer(data={**request.data, 'role': 'admin'})
