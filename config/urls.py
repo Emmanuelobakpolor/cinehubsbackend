@@ -6,6 +6,7 @@ from config.streaming import media_stream
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework.permissions import AllowAny
+from users.views import CreateAdminView
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -21,6 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('api/users/', include('users.urls')),
+    path('api/auth/create-admin/', CreateAdminView.as_view()),
     path('api/movies/', include('movies.urls')),
     path('api/subscriptions/', include('subscriptions.urls')),
     path('api/payments/', include('payments.urls')),

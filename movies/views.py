@@ -8,7 +8,6 @@ from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.exceptions import NotFound
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -242,15 +241,15 @@ class TrendingMoviesView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
 
-class FeaturedMovieView(generics.RetrieveAPIView):
-    serializer_class = MovieSerializer
+class FeaturedMovieView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_object(self):
+    def get(self, request):
         movie = Movie.objects.filter(is_featured=True).first()
         if not movie:
-            raise NotFound("No featured movie set.")
-        return movie
+            return Response(None)
+        serializer = MovieSerializer(movie, context={'request': request})
+        return Response(serializer.data)
 
 
 class SetFeaturedMovieView(APIView):
