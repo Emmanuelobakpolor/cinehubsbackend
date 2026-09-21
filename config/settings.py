@@ -141,7 +141,8 @@ FILE_UPLOAD_HANDLERS = ['django.core.files.uploadhandler.TemporaryFileUploadHand
 CORS_ALLOWED_ORIGINS = [
     "https://cinehubsadmin.cinehubsapp.workers.dev",
     "https://cinehubsbackend-production.up.railway.app",
-    "https://cinehubsadmin-c5r5.vercel.app"
+    "https://cinehubsadmin-c5r5.vercel.app",
+    "https://cinehubsadmin.vercel.app"
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -155,7 +156,8 @@ CORS_ALLOW_HEADERS = [
 CSRF_TRUSTED_ORIGINS = [
     "https://cinehubsadmin.cinehubsapp.workers.dev",
     "https://cinehubsbackend-production.up.railway.app",
-    "https://cinehubsadmin-c5r5.vercel.app/"
+    "https://cinehubsadmin-c5r5.vercel.app/",
+    "https://cinehubsadmin.vercel.app/"
 ]
 
 # ─── EMAIL ─────────────────────────────────────────────────────────────────────
