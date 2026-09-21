@@ -4,7 +4,9 @@ from .models import SubscriptionPlan, UserSubscription
 
 @admin.register(SubscriptionPlan)
 class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ['name', 'price', 'duration_days']
+    list_display = ['name', 'price', 'duration_days', 'description']
+    fields = ['name', 'price', 'duration_days', 'description']
+    readonly_fields = ['created_at']
 
 
 @admin.register(UserSubscription)
