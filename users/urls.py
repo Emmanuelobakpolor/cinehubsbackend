@@ -3,13 +3,14 @@ from .views import (
     RegisterView, LoginView, AdminLoginView, LogoutView, ProfileView,
     ProfilePictureView, ChangePasswordView, SendEmailOTPView, VerifyEmailView,
     ForgotPasswordView, ResetPasswordView, DashboardStatsView, DeleteUserView,
-    AdminUpdateAccountView, AdminAllUsersView,
+    AdminUpdateAccountView, AdminAllUsersView, CreateAdminView,
 )
 
 urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
     path('admin-login/', AdminLoginView.as_view()),
+    path('admin/create/', CreateAdminView.as_view()),
     path('logout/', LogoutView.as_view()),
     path('profile/', ProfileView.as_view()),
     path('profile/picture/', ProfilePictureView.as_view()),
