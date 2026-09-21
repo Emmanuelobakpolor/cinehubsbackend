@@ -17,7 +17,7 @@ class SubscriptionPlanListView(generics.ListCreateAPIView):
         return [IsAuthenticated()]
 
 
-class SubscriptionPlanDetailView(generics.RetrieveUpdateAPIView):
+class SubscriptionPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubscriptionPlan.objects.all()
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminUser]
