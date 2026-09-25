@@ -138,11 +138,21 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = None
 FILE_UPLOAD_MAX_MEMORY_SIZE = None
 FILE_UPLOAD_HANDLERS = ['django.core.files.uploadhandler.TemporaryFileUploadHandler']
 
+# WEB_APP_ORIGINS: comma-separated origins of the customer web app
+# (e.g. "https://cinehubs.vercel.app,http://localhost:5173"). They are allowed
+# for CORS and as Flutterwave payment redirect targets.
+WEB_APP_ORIGINS = [
+    o.strip().rstrip('/')
+    for o in config('WEB_APP_ORIGINS', default='').split(',')
+    if o.strip()
+]
+
 CORS_ALLOWED_ORIGINS = [
     "https://cinehubsadmin.cinehubsapp.workers.dev",
     "https://cinehubsbackend-production.up.railway.app",
     "https://cinehubsadmin-c5r5.vercel.app",
-    "https://cinehubsadmin.vercel.app"
+    "https://cinehubsadmin.vercel.app",
+    *WEB_APP_ORIGINS,
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [

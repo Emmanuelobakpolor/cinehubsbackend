@@ -355,8 +355,15 @@ class SendEmailOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from users.tasks import send_email_otp_task
-        send_email_otp_task.delay(request.user.id)
+        # Sent in-request rather than via Celery: Railway only runs the web
+        # process, so queued tasks were never picked up and no email went out.
+        try:
+            send_email_otp(request.user)
+        except Exception:
+            return Response(
+                {'error': 'Could not send the verification email. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         return Response({'message': 'OTP sent to your email.'})
 
 

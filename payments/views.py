@@ -4,6 +4,7 @@ import hmac
 import json
 import requests
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.db import transaction
@@ -20,6 +21,13 @@ from .serializers import PaymentInitSerializer, PaymentSerializer
 from subscriptions.models import SubscriptionPlan, UserSubscription
 
 logger = logging.getLogger(__name__)
+
+
+def is_allowed_web_redirect(url):
+    """True if url's origin is one of settings.WEB_APP_ORIGINS."""
+    parsed = urlparse(url)
+    origin = f'{parsed.scheme}://{parsed.netloc}'
+    return parsed.scheme in ('http', 'https') and origin in getattr(settings, 'WEB_APP_ORIGINS', [])
 
 
 def activate_subscription(payment, flw_ref=None):
@@ -127,11 +135,20 @@ class InitiatePaymentView(APIView):
                 tx_ref=tx_ref,
             )
 
+            # The web app passes its own callback page; only allowlisted
+            # origins are accepted so this can't be used as an open redirect.
+            redirect_url = settings.PAYMENT_REDIRECT_URL
+            requested_redirect = serializer.validated_data.get('redirect_url')
+            if requested_redirect:
+                if not is_allowed_web_redirect(requested_redirect):
+                    return Response({'error': 'redirect_url is not allowed.'}, status=status.HTTP_400_BAD_REQUEST)
+                redirect_url = requested_redirect
+
             payload = {
                 'tx_ref': tx_ref,
                 'amount': str(plan.price),
                 'currency': 'NGN',
-                'redirect_url': settings.PAYMENT_REDIRECT_URL,
+                'redirect_url': redirect_url,
                 'customer': {
                     'email': request.user.email,
                     'name': request.user.username,
