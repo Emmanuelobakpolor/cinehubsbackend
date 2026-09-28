@@ -27,28 +27,67 @@ def _get_stats(user):
     }
 
 
+def _send_via_resend(to_email, subject, body):
+    """Send a transactional email via the Resend API."""
+    import resend
+    resend.api_key = settings.RESEND_API_KEY
+    email = resend.Emails.send({
+        'from': settings.RESEND_FROM_EMAIL,
+        'to': [to_email],
+        'subject': subject,
+        'text': body,
+    })
+    print(f"[EMAIL] Sent via Resend to {to_email} | id: {email.get('id')}")
+
+
+def _send_via_sendgrid(to_email, subject, body):
+    """Send a transactional email via SendGrid HTTP API."""
+    import sendgrid
+    from sendgrid.helpers.mail import Mail
+    sg = sendgrid.SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
+    message = Mail(
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=body,
+    )
+    response = sg.send(message)
+    print(f"[EMAIL] Sent via SendGrid to {to_email} | Status: {response.status_code}")
+
+
 def _send_email(to_email, subject, body):
-    """Send a transactional email via SendGrid HTTP API. Falls back to console if USE_CONSOLE_EMAIL=True."""
+    """Send a transactional email via Resend, falling back to SendGrid on failure.
+
+    EMAIL_PROVIDER controls which provider is tried first. Prints to console
+    instead if USE_CONSOLE_EMAIL=True. Raises if every configured provider fails.
+    """
     if settings.USE_CONSOLE_EMAIL:
         print(f"\n[EMAIL] To: {to_email} | Subject: {subject}\n{body}\n")
         return
-    import sendgrid
-    from sendgrid.helpers.mail import Mail
+
+    providers = [
+        ('resend', settings.RESEND_API_KEY, _send_via_resend),
+        ('sendgrid', settings.SENDGRID_API_KEY, _send_via_sendgrid),
+    ]
+    if settings.EMAIL_PROVIDER.lower() == 'sendgrid':
+        providers.reverse()
+
     print(f"[EMAIL] Attempting to send to: {to_email} | Subject: {subject}")
-    print(f"[EMAIL] API KEY set: {bool(settings.SENDGRID_API_KEY)}")
-    try:
-        sg = sendgrid.SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
-        message = Mail(
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to_emails=to_email,
-            subject=subject,
-            plain_text_content=body,
-        )
-        response = sg.send(message)
-        print(f"[EMAIL] Sent successfully to {to_email} | Status: {response.status_code}")
-    except Exception as e:
-        print(f"[EMAIL ERROR]: {repr(e)}")
-        raise
+    last_error = None
+    for name, api_key, send in providers:
+        if not api_key:
+            print(f"[EMAIL] Skipping {name}: API key not set")
+            continue
+        try:
+            send(to_email, subject, body)
+            return
+        except Exception as e:
+            print(f"[EMAIL ERROR] {name}: {repr(e)}")
+            last_error = e
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError('No email provider configured (set RESEND_API_KEY or SENDGRID_API_KEY).')
 
 
 def send_email_otp(user):

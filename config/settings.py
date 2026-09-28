@@ -171,11 +171,17 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # ─── EMAIL ─────────────────────────────────────────────────────────────────────
-# Using Twilio SendGrid for transactional email (OTP, password reset).
+# Transactional email (OTP, password reset) goes through Resend first and
+# falls back to Twilio SendGrid if Resend fails or isn't configured.
+# EMAIL_PROVIDER picks which one is tried first ('resend' or 'sendgrid').
 # Set USE_CONSOLE_EMAIL=True to print emails to terminal instead of sending.
 
 USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='admin@lexisdevelopmentgroup.com')
+EMAIL_PROVIDER = config('EMAIL_PROVIDER', default='resend')
+
+RESEND_API_KEY = config('RESEND_API_KEY', default='')
+RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default=DEFAULT_FROM_EMAIL)
 
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 

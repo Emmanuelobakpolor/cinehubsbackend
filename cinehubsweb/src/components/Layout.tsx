@@ -111,6 +111,7 @@ export function Layout() {
             <img src="/icon.png" alt="" />
             CINEHUBS
           </Link>
+          <p>Home of Movies</p>
           <nav>
             {NAV.slice(0, 4).map((n) => (
               <NavLink key={n.to} to={n.to}>
