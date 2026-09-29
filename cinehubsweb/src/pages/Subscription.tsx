@@ -37,7 +37,7 @@ export default function Subscription() {
   async function payPremium() {
     setPaying(true);
     try {
-      await PaymentService.startCheckout({ planId: PLAN_PREMIUM, planName: 'PREMIUM' });
+      await PaymentService.startCheckout({ plan: PLAN_PREMIUM, planName: 'PREMIUM' });
     } catch (e) {
       setPaying(false);
       toast(`Could not initiate payment: ${(e as Error).message}`, 'red', 5000);

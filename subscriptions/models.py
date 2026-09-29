@@ -13,6 +13,25 @@ class SubscriptionPlan(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Created on demand so a fresh database never breaks checkout.
+    DEFAULTS = {
+        'BASIC': {
+            'price': 200,
+            'duration_days': 1,
+            'description': 'Pay per movie - ₦200 charged at download time.',
+        },
+        'PREMIUM': {
+            'price': 5500,
+            'duration_days': 30,
+            'description': 'Unlimited access to all movies for 30 days - ₦5,500 per month.',
+        },
+    }
+
+    @classmethod
+    def get_or_create_by_name(cls, name):
+        """Return the plan called [name] ('BASIC' or 'PREMIUM'), creating it with defaults if missing."""
+        return cls.objects.get_or_create(name=name, defaults=cls.DEFAULTS[name])
+
     def __str__(self):
         return f'{self.name} - {self.price}'
 

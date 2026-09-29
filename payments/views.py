@@ -112,10 +112,14 @@ class InitiatePaymentView(APIView):
     def post(self, request):
         serializer = PaymentInitSerializer(data=request.data)
         if serializer.is_valid():
-            try:
-                plan = SubscriptionPlan.objects.get(id=serializer.validated_data['plan_id'])
-            except SubscriptionPlan.DoesNotExist:
-                return Response({'error': 'Plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+            plan_name = serializer.validated_data.get('plan_name')
+            if plan_name:
+                plan, _ = SubscriptionPlan.get_or_create_by_name(plan_name)
+            else:
+                try:
+                    plan = SubscriptionPlan.objects.get(id=serializer.validated_data['plan_id'])
+                except SubscriptionPlan.DoesNotExist:
+                    return Response({'error': 'Plan not found.'}, status=status.HTTP_404_NOT_FOUND)
 
             # Mark stale PENDING payments (> 30 min old) as FAILED to keep the DB tidy.
             # We do NOT reuse existing tx_refs because Flutterwave marks a link as

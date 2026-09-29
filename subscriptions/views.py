@@ -85,37 +85,15 @@ class InitializePlansView(APIView):
     def post(self, request):
         plans_created = []
 
-        # Create BASIC plan (₦200 per movie)
-        basic, created = SubscriptionPlan.objects.get_or_create(
-            name='BASIC',
-            defaults={
-                'price': 200,
-                'duration_days': 1,
-                'description': 'Pay per movie - ₦200 charged at download time.',
-            }
-        )
-        plans_created.append({
-            'name': 'BASIC',
-            'price': float(basic.price),
-            'id': basic.id,
-            'created': created,
-        })
-
-        # Create PREMIUM plan (₦5,500 per month)
-        premium, created = SubscriptionPlan.objects.get_or_create(
-            name='PREMIUM',
-            defaults={
-                'price': 5500,
-                'duration_days': 30,
-                'description': 'Unlimited access to all movies for 30 days - ₦5,500 per month.',
-            }
-        )
-        plans_created.append({
-            'name': 'PREMIUM',
-            'price': float(premium.price),
-            'id': premium.id,
-            'created': created,
-        })
+        # BASIC: ₦200 per movie. PREMIUM: ₦5,500 per month.
+        for name in ('BASIC', 'PREMIUM'):
+            plan, created = SubscriptionPlan.get_or_create_by_name(name)
+            plans_created.append({
+                'name': name,
+                'price': float(plan.price),
+                'id': plan.id,
+                'created': created,
+            })
 
         return Response({
             'message': 'Subscription plans initialized successfully',
