@@ -81,6 +81,12 @@ export function setSessionExpiredHandler(fn: () => void) {
   onSessionExpired = fn;
 }
 
+/** Called when the backend rejects a request because the user's email isn't verified. */
+let onEmailNotVerified: () => void = () => {};
+export function setEmailNotVerifiedHandler(fn: () => void) {
+  onEmailNotVerified = fn;
+}
+
 let refreshing: Promise<boolean> | null = null;
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -157,6 +163,7 @@ export async function api<T = any>(
   }
 
   if (!res.ok && !allowStatus.includes(res.status)) {
+    if (res.status === 403 && data?.code === 'email_not_verified') onEmailNotVerified();
     throw new ApiError(parseError(data, res.status), res.status, data);
   }
   return { status: res.status, data };

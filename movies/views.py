@@ -7,7 +7,8 @@ import cloudinary.uploader
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAdminUser
+from users.permissions import IsVerifiedUser
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -108,12 +109,12 @@ def _upload_movie_files_to_cloudinary(data):
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.all().order_by('name')
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAdminUser()]
-        return [IsAuthenticated()]
+        return [IsVerifiedUser()]
 
 
 class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -123,14 +124,14 @@ class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method == 'GET':
-            return [IsAuthenticated()]
+            return [IsVerifiedUser()]
         return [IsAdminUser()]
 
 
 class MovieListCreateView(generics.ListCreateAPIView):
     queryset = Movie.objects.all().order_by('-created_at')
     serializer_class = MovieSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['categories', 'is_trending']
@@ -140,7 +141,7 @@ class MovieListCreateView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAdminUser()]
-        return [IsAuthenticated()]
+        return [IsVerifiedUser()]
 
     def create(self, request, *args, **kwargs):
         try:
@@ -169,7 +170,7 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAdminUser()]
-        return [IsAuthenticated()]
+        return [IsVerifiedUser()]
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -238,11 +239,11 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
 class TrendingMoviesView(generics.ListAPIView):
     queryset = Movie.objects.filter(is_trending=True).order_by('-views_count')
     serializer_class = MovieSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
 
 class FeaturedMovieView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request):
         movie = Movie.objects.filter(is_featured=True).first()
@@ -265,7 +266,7 @@ class SetFeaturedMovieView(APIView):
 
 class WatchHistoryView(generics.ListAPIView):
     serializer_class = WatchHistorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get_queryset(self):
         return WatchHistory.objects.filter(user=self.request.user).order_by('-watched_at')
@@ -296,7 +297,7 @@ class MovieStatsView(APIView):
 
 
 class SavedMovieView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request):
         saved = SavedMovie.objects.filter(user=request.user).order_by('-saved_at')
@@ -321,7 +322,7 @@ class SavedMovieView(APIView):
 
 
 class UnsaveMovieView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def delete(self, request, movie_id):
         deleted, _ = SavedMovie.objects.filter(user=request.user, movie_id=movie_id).delete()
@@ -347,7 +348,7 @@ class DownloadCheckView(APIView):
       200 { "status": "allowed", "download_url": "...", "reason": "premium"|"already_paid" }
       402 { "status": "payment_required", "amount": "200.00", "movie_id": <id> }
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk)
@@ -395,7 +396,7 @@ class ConfirmDownloadView(APIView):
     Grants per-movie access only after verifying a real, successful BASIC payment
     that belongs to the requesting user.  Premium users bypass this check.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def post(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk)
@@ -470,7 +471,7 @@ class ConfirmDownloadView(APIView):
 class MyDownloadsView(generics.ListAPIView):
     """GET /api/movies/my-downloads/ — list all movies a user has paid to download."""
     serializer_class = MovieDownloadSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get_queryset(self):
         return MovieDownload.objects.filter(user=self.request.user).order_by('-paid_at')
@@ -538,7 +539,7 @@ class UpdateWatchProgressView(APIView):
     Called periodically by the Flutter player to record how far the user got.
     Creates WatchHistory AND UserMovieAccess (10-day window) if they don't exist yet.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def patch(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk)

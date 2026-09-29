@@ -5,7 +5,8 @@ import threading
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAdminUser
+from users.permissions import IsVerifiedUser
 from django.db.models import Q
 from django.conf import settings
 
@@ -110,7 +111,7 @@ def _tokens_for_audience(audience: str) -> list:
 
 
 class MyNotificationsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request):
         from subscriptions.models import UserSubscription
@@ -187,7 +188,7 @@ class BroadcastView(APIView):
 
 
 class RegisterDeviceTokenView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def post(self, request):
         serializer = DeviceTokenSerializer(data=request.data)

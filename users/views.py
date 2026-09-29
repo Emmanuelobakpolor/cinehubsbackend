@@ -55,11 +55,19 @@ def _send_via_sendgrid(to_email, subject, body):
     print(f"[EMAIL] Sent via SendGrid to {to_email} | Status: {response.status_code}")
 
 
-def _send_email(to_email, subject, body):
-    """Send a transactional email via Resend, falling back to SendGrid on failure.
+def _send_via_smtp(to_email, subject, body):
+    """Send a transactional email via Django's SMTP backend (e.g. Gmail)."""
+    from django.core.mail import send_mail
+    send_mail(subject, body, settings.EMAIL_HOST_USER, [to_email], fail_silently=False)
+    print(f"[EMAIL] Sent via SMTP ({settings.EMAIL_HOST}) to {to_email}")
 
-    EMAIL_PROVIDER controls which provider is tried first. Prints to console
-    instead if USE_CONSOLE_EMAIL=True. Raises if every configured provider fails.
+
+def _send_email(to_email, subject, body):
+    """Send a transactional email, trying each configured provider in turn.
+
+    EMAIL_PROVIDER is tried first, then the remaining providers as fallbacks.
+    Prints to console instead if USE_CONSOLE_EMAIL=True. Raises if every
+    configured provider fails.
     """
     if settings.USE_CONSOLE_EMAIL:
         print(f"\n[EMAIL] To: {to_email} | Subject: {subject}\n{body}\n")
@@ -67,16 +75,17 @@ def _send_email(to_email, subject, body):
 
     providers = [
         ('resend', settings.RESEND_API_KEY, _send_via_resend),
+        ('smtp', settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD, _send_via_smtp),
         ('sendgrid', settings.SENDGRID_API_KEY, _send_via_sendgrid),
     ]
-    if settings.EMAIL_PROVIDER.lower() == 'sendgrid':
-        providers.reverse()
+    preferred = settings.EMAIL_PROVIDER.lower()
+    providers.sort(key=lambda p: p[0] != preferred)
 
     print(f"[EMAIL] Attempting to send to: {to_email} | Subject: {subject}")
     last_error = None
     for name, api_key, send in providers:
         if not api_key:
-            print(f"[EMAIL] Skipping {name}: API key not set")
+            print(f"[EMAIL] Skipping {name}: credentials not set")
             continue
         try:
             send(to_email, subject, body)
@@ -87,7 +96,10 @@ def _send_email(to_email, subject, body):
 
     if last_error is not None:
         raise last_error
-    raise RuntimeError('No email provider configured (set RESEND_API_KEY or SENDGRID_API_KEY).')
+    raise RuntimeError(
+        'No email provider configured '
+        '(set RESEND_API_KEY, EMAIL_HOST_USER/EMAIL_HOST_PASSWORD or SENDGRID_API_KEY).'
+    )
 
 
 def send_email_otp(user):
@@ -136,6 +148,7 @@ class LoginView(APIView):
                 'message': 'Login successful',
                 'access_token': str(refresh.access_token),
                 'refresh_token': str(refresh),
+                'is_email_verified': user.is_staff or user.is_email_verified,
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -170,6 +183,22 @@ class DeleteUserView(APIView):
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         user.delete()
         return Response({'message': 'User deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class AdminVerifyUserView(APIView):
+    """Admin-only: mark a user's email as verified (e.g. when their OTP never arrived)."""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, user_id):
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        user.is_email_verified = True
+        user.email_otp = None
+        user.email_otp_expiry = None
+        user.save(update_fields=['is_email_verified', 'email_otp', 'email_otp_expiry'])
+        return Response({'message': 'User email marked as verified.', 'is_email_verified': True})
 
 
 class DashboardStatsView(APIView):

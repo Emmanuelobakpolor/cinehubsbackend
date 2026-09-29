@@ -98,7 +98,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        'users.permissions.IsVerifiedUser',
     ),
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -171,9 +171,9 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # ─── EMAIL ─────────────────────────────────────────────────────────────────────
-# Transactional email (OTP, password reset) goes through Resend first and
-# falls back to Twilio SendGrid if Resend fails or isn't configured.
-# EMAIL_PROVIDER picks which one is tried first ('resend' or 'sendgrid').
+# Transactional email (OTP, password reset) is tried through each configured
+# provider in turn: EMAIL_PROVIDER first ('resend', 'smtp' or 'sendgrid'),
+# then the others as fallbacks. A provider is skipped if its credentials are unset.
 # Set USE_CONSOLE_EMAIL=True to print emails to terminal instead of sending.
 
 USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=False, cast=bool)
@@ -184,6 +184,15 @@ RESEND_API_KEY = config('RESEND_API_KEY', default='')
 RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default=DEFAULT_FROM_EMAIL)
 
 SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
+
+# Django SMTP (e.g. Gmail with an App Password). Sent from EMAIL_HOST_USER.
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_TIMEOUT = 15
 
 # ─── FLUTTERWAVE ───────────────────────────────────────────────────────────────
 # Set PAYMENT_TEST_MODE=True only for local/dev testing.

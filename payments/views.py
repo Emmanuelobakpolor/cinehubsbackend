@@ -14,7 +14,8 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.permissions import IsAdminUser, AllowAny
+from users.permissions import IsVerifiedUser
 
 from .models import Payment
 from .serializers import PaymentInitSerializer, PaymentSerializer
@@ -106,7 +107,7 @@ def verify_payment_invariants(payment, flw_data):
 
 
 class InitiatePaymentView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def post(self, request):
         serializer = PaymentInitSerializer(data=request.data)
@@ -196,7 +197,7 @@ class VerifyPaymentView(APIView):
         # The actual payment verification always comes from a separate POST with a JWT.
         if self.request.method == 'GET':
             return [AllowAny()]
-        return [IsAuthenticated()]
+        return [IsVerifiedUser()]
 
     def get(self, request):
         """
@@ -395,7 +396,7 @@ class FlutterwaveWebhookView(APIView):
 
 
 class MyPaymentsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request):
         payments = Payment.objects.filter(user=request.user).order_by('-created_at')
@@ -414,7 +415,7 @@ class AdminPaymentsView(APIView):
 
 class MockPaymentView(APIView):
     """Test endpoint for simulating payment completion in test mode."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request):
         tx_ref = request.query_params.get('tx_ref')

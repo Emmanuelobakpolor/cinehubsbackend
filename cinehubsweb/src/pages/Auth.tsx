@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { AuthService } from '../api/services';
+import { AuthService, UserService } from '../api/services';
 import { BackBar, PasswordInput, ResultDialog, Spinner } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { ONBOARDING_POSTERS } from './Onboarding';
@@ -54,7 +54,11 @@ export function SignIn() {
     setLoading(true);
     setError(null);
     try {
-      await AuthService.login(email.trim(), password);
+      const data = await AuthService.login(email.trim(), password);
+      if (data.is_email_verified === false) {
+        navigate(`/verify?mode=signup&send=1&email=${encodeURIComponent(email.trim())}`, { replace: true });
+        return;
+      }
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from && from !== '/signin' ? from : '/home', { replace: true });
     } catch (err) {
@@ -209,13 +213,25 @@ export function ForgotPassword() {
 export function Otp() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const email = params.get('email') ?? '';
   const isSignup = params.get('mode') !== 'reset';
+  const [email, setEmail] = useState(params.get('email') ?? '');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [seconds, setSeconds] = useState(60);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Arrived here because the account is unverified (login or a blocked request):
+  // send a fresh code and fill in the email if the link didn't carry it.
+  const sentRef = useRef(false);
+  useEffect(() => {
+    if (!isSignup || sentRef.current) return;
+    sentRef.current = true;
+    if (!email) UserService.getProfile().then((p) => setEmail(p.email)).catch(() => {});
+    if (params.get('send') === '1') {
+      AuthService.resendEmailOtp().catch((err) => setError((err as Error).message));
+    }
+  }, [isSignup, email, params]);
 
   useEffect(() => {
     if (seconds <= 0) return;

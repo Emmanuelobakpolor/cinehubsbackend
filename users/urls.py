@@ -3,7 +3,7 @@ from .views import (
     RegisterView, LoginView, AdminLoginView, LogoutView, ProfileView,
     ProfilePictureView, ChangePasswordView, SendEmailOTPView, VerifyEmailView,
     ForgotPasswordView, ResetPasswordView, DashboardStatsView, DeleteUserView,
-    AdminUpdateAccountView, AdminAllUsersView, CreateAdminView,
+    AdminUpdateAccountView, AdminAllUsersView, CreateAdminView, AdminVerifyUserView,
 )
 
 urlpatterns = [
@@ -23,4 +23,5 @@ urlpatterns = [
     path('reset-password/', ResetPasswordView.as_view()),
     path('dashboard-stats/', DashboardStatsView.as_view()),
     path('<int:user_id>/delete/', DeleteUserView.as_view()),
+    path('<int:user_id>/verify/', AdminVerifyUserView.as_view()),
 ]

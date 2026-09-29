@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { setSessionExpiredHandler, storage } from './api/client';
+import { setEmailNotVerifiedHandler, setSessionExpiredHandler, storage } from './api/client';
 import { Layout } from './components/Layout';
 import Splash from './pages/Splash';
 import Onboarding from './pages/Onboarding';
@@ -34,6 +34,10 @@ export default function App() {
 
   useEffect(() => {
     setSessionExpiredHandler(() => navigate('/signin', { replace: true }));
+    // Several requests can 403 at once; only redirect (and send one OTP) the first time.
+    setEmailNotVerifiedHandler(() => {
+      if (window.location.pathname !== '/verify') navigate('/verify?mode=signup&send=1', { replace: true });
+    });
   }, [navigate]);
 
   useEffect(() => {

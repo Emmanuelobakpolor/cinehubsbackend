@@ -1,7 +1,8 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAdminUser
+from users.permissions import IsVerifiedUser
 
 from .models import SubscriptionPlan, UserSubscription
 from .serializers import SubscriptionPlanSerializer, UserSubscriptionSerializer, AdminSubscriberSerializer
@@ -14,7 +15,7 @@ class SubscriptionPlanListView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAdminUser()]
-        return [IsAuthenticated()]
+        return [IsVerifiedUser()]
 
 
 class SubscriptionPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -24,7 +25,7 @@ class SubscriptionPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class MySubscriptionView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get(self, request):
         subscriptions = UserSubscription.objects.filter(user=request.user).order_by('-created_at')

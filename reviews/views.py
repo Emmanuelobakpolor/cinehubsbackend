@@ -1,7 +1,7 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from users.permissions import IsVerifiedUser
 
 from .models import Review
 from .serializers import ReviewSerializer
@@ -9,7 +9,7 @@ from .serializers import ReviewSerializer
 
 class MovieReviewsView(generics.ListCreateAPIView):
     serializer_class = ReviewSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get_queryset(self):
         movie_id = self.kwargs['movie_id']
@@ -22,7 +22,7 @@ class MovieReviewsView(generics.ListCreateAPIView):
 
 class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReviewSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsVerifiedUser]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
