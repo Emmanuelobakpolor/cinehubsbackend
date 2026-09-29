@@ -116,10 +116,16 @@ class InitiatePaymentView(APIView):
             if plan_name:
                 plan, _ = SubscriptionPlan.get_or_create_by_name(plan_name)
             else:
+                plan_id = serializer.validated_data['plan_id']
                 try:
-                    plan = SubscriptionPlan.objects.get(id=serializer.validated_data['plan_id'])
+                    plan = SubscriptionPlan.objects.get(id=plan_id)
                 except SubscriptionPlan.DoesNotExist:
-                    return Response({'error': 'Plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+                    # Older app builds hardcode 1 = BASIC and 2 = PREMIUM, which
+                    # don't match the database ids once plans have been recreated.
+                    legacy_name = {1: 'BASIC', 2: 'PREMIUM'}.get(plan_id)
+                    if not legacy_name:
+                        return Response({'error': 'Plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+                    plan, _ = SubscriptionPlan.get_or_create_by_name(legacy_name)
 
             # Mark stale PENDING payments (> 30 min old) as FAILED to keep the DB tidy.
             # We do NOT reuse existing tx_refs because Flutterwave marks a link as
