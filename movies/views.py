@@ -346,7 +346,7 @@ class DownloadCheckView(APIView):
     GET  /api/movies/<pk>/download/ — check if user can download.
     Returns:
       200 { "status": "allowed", "download_url": "...", "reason": "premium"|"already_paid" }
-      402 { "status": "payment_required", "amount": "200.00", "movie_id": <id> }
+      402 { "status": "payment_required", "amount": "1000.00", "movie_id": <id> }
     """
     permission_classes = [IsVerifiedUser]
 
@@ -375,7 +375,7 @@ class DownloadCheckView(APIView):
             basic_plan = SubscriptionPlan.objects.get(name='BASIC')
             amount = str(basic_plan.price)
         except SubscriptionPlan.DoesNotExist:
-            amount = '200.00'
+            amount = '1000.00'
 
         return Response(
             {

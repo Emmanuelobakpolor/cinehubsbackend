@@ -16,9 +16,9 @@ class SubscriptionPlan(models.Model):
     # Created on demand so a fresh database never breaks checkout.
     DEFAULTS = {
         'BASIC': {
-            'price': 200,
+            'price': 1000,
             'duration_days': 1,
-            'description': 'Pay per movie - ₦200 charged at download time.',
+            'description': 'Pay per movie - ₦1,000 charged at download time.',
         },
         'PREMIUM': {
             'price': 5500,

@@ -8,7 +8,7 @@ const FAQ = [
   ['How do I reset my password?', 'Go to Settings > Password & Security to change your password. Forgot it? Use “Forgot Password?” on the sign-in page.'],
   ['Can I download movies for offline viewing?', 'Yes! Use the Download button on any movie you have access to. The file is saved by your browser.'],
   ['How do I update my profile picture?', 'Visit Settings > Personal Information to update your profile photo.'],
-  ['How does paying per movie work?', 'On the Basic plan each movie costs ₦200 and stays unlocked for 10 days. Premium unlocks everything for 30 days.'],
+  ['How does paying per movie work?', 'On the Basic plan each movie costs ₦1,000 and stays unlocked for 10 days. Premium unlocks everything for 30 days.'],
 ];
 
 export function Support() {

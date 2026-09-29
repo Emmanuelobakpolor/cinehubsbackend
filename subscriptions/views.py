@@ -77,17 +77,21 @@ class AllSubscribersView(generics.ListAPIView):
 class InitializePlansView(APIView):
     """
     POST /api/subscriptions/initialize-plans/
-    Admin-only endpoint to create BASIC and PREMIUM plans if they don't exist.
-    Useful for initial setup after migrations.
+    Admin-only endpoint to create the BASIC and PREMIUM plans, or reset existing
+    ones to the prices in SubscriptionPlan.DEFAULTS.
     """
     permission_classes = [IsAdminUser]
 
     def post(self, request):
         plans_created = []
 
-        # BASIC: ₦200 per movie. PREMIUM: ₦5,500 per month.
+        # BASIC: ₦1,000 per movie. PREMIUM: ₦5,500 per month.
+        # Existing plans are updated in place (not deleted) so their ids, and the
+        # subscriptions and payments that point at them, are kept.
         for name in ('BASIC', 'PREMIUM'):
-            plan, created = SubscriptionPlan.get_or_create_by_name(name)
+            plan, created = SubscriptionPlan.objects.update_or_create(
+                name=name, defaults=SubscriptionPlan.DEFAULTS[name],
+            )
             plans_created.append({
                 'name': name,
                 'price': float(plan.price),

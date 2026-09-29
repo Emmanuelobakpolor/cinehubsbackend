@@ -47,7 +47,7 @@ const PAGES = [
 
 const FAQ = [
   ['What is Cinehubs?', 'Cinehubs is a streaming home for Nollywood and African stories — blockbusters, indie gems and diaspora favourites, on your phone or in your browser.'],
-  ['How much does Cinehubs cost?', 'Pay ₦200 to unlock a single movie for 10 days, or go Premium for ₦5,500 and watch everything for 30 days. No foreign card required.'],
+  ['How much does Cinehubs cost?', 'Pay ₦1,000 to unlock a single movie for 10 days, or go Premium for ₦5,500 and watch everything for 30 days. No foreign card required.'],
   ['Where can I watch?', 'Right here on the web, and in the Cinehubs app for Android and iOS. One account works everywhere.'],
   ['Can I download movies?', 'Yes. Any movie you have access to can be downloaded, so you can watch without burning data.'],
   ['How do I pay?', 'Payments are processed securely by Flutterwave in Naira — card, bank transfer or USSD.'],
@@ -167,7 +167,7 @@ export default function Onboarding() {
             ))}
           </h1>
           <p className="nf-lead nf-fade" style={{ animationDelay: '0.9s' }}>
-            From ₦200 a movie. Or go Premium for ₦5,500 a month.
+            From ₦1,000 a movie. Or go Premium for ₦5,500 a month.
           </p>
           <p className="nf-small nf-fade" style={{ animationDelay: '1.05s' }}>
             Ready to watch? Create your account or sign in.

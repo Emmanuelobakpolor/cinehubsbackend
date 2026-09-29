@@ -127,7 +127,7 @@ export const MovieService = {
   async checkAccess(movieId: number) {
     const { status, data } = await api(`/movies/${movieId}/download/`, { allowStatus: [402] });
     if (status === 402) {
-      return { allowed: false, amount: String(data?.amount ?? '200.00'), downloadUrl: '' };
+      return { allowed: false, amount: String(data?.amount ?? '1000.00'), downloadUrl: '' };
     }
     return { allowed: true, amount: '0', downloadUrl: buildMediaUrl(data?.download_url) };
   },

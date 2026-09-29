@@ -60,7 +60,7 @@ function Detail({ movie: m, autoplay }: { movie: Movie; autoplay: boolean }) {
       setAccess(r);
       return r;
     } catch {
-      const r = { allowed: false, amount: '200.00' };
+      const r = { allowed: false, amount: '1000.00' };
       setAccess(r);
       return r;
     }

@@ -9,7 +9,7 @@ const PLANS = [
   {
     key: 'basic',
     title: 'BASIC',
-    price: '₦200',
+    price: '₦1,000',
     period: '/ movie',
     blurb: 'Pay only for what you watch.',
     features: ['1080p High Definition', '1 concurrent stream', 'Ad-free playback', 'Watch on any device'],
@@ -99,7 +99,7 @@ export default function Subscription() {
           <strong className="gold" style={{ letterSpacing: 2 }}>BASIC Plan</strong>
           <h2 className="mt8">No upfront subscription needed.</h2>
           <p className="muted small mt8">
-            With the Basic plan you pay ₦200 per movie. Simply browse, find a movie you want, tap Play or Download — you&apos;ll be charged per movie at that point.
+            With the Basic plan you pay ₦1,000 per movie. Simply browse, find a movie you want, tap Play or Download — you&apos;ll be charged per movie at that point.
           </p>
           <button className="btn btn-primary block mt24" onClick={() => navigate('/browse')}>
             Browse Movies
