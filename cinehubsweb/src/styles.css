@@ -550,3 +550,29 @@ textarea.input { height: auto; min-height: 96px; padding: 14px 16px; resize: ver
 .wrap { flex-wrap: wrap; }
 .grow { flex: 1; }
 .mt8 { margin-top: 8px; } .mt16 { margin-top: 16px; } .mt24 { margin-top: 24px; } .mb16 { margin-bottom: 16px; }
+
+/* ── Country code picker ────────────────────────────── */
+.country-picker { position: relative; flex-shrink: 0; }
+.country-trigger {
+  height: 52px; padding: 0 10px 0 14px; border-radius: 10px; background: var(--input-bg);
+  border: 1.5px solid transparent; display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 500; color: var(--text); cursor: pointer;
+}
+.country-trigger:focus-visible, .country-trigger[aria-expanded='true'] { border-color: var(--primary); outline: none; }
+.country-trigger .chev { color: var(--text-2); transition: transform 0.15s; }
+.country-trigger[aria-expanded='true'] .chev { transform: rotate(180deg); }
+.country-picker .flag { width: 22px; height: 16px; object-fit: cover; border-radius: 3px; flex-shrink: 0; box-shadow: 0 0 0 1px var(--divider); }
+.country-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; width: min(320px, calc(100vw - 32px));
+  background: var(--bg); border: 1px solid var(--divider); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+}
+.country-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--divider); color: var(--text-2); }
+.country-search input { flex: 1; height: 44px; border: 0; outline: none; background: transparent; font-size: 14px; color: var(--text); }
+.country-search input::placeholder { color: var(--text-3); }
+.country-menu ul { list-style: none; margin: 0; padding: 6px; max-height: 280px; overflow-y: auto; }
+.country-menu li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.country-menu li.active { background: var(--input-bg); }
+.country-menu li.selected { color: var(--primary); font-weight: 600; }
+.country-menu li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.country-menu li .dial { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.country-menu li.empty { color: var(--text-2); cursor: default; justify-content: center; }

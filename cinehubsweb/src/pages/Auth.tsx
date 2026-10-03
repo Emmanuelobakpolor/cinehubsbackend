@@ -4,6 +4,13 @@ import { AuthService, UserService } from '../api/services';
 import { BackBar, PasswordInput, ResultDialog, Spinner } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { ONBOARDING_POSTERS } from './Onboarding';
+import { CountryCodePicker, findCountry } from '../components/CountryCodePicker';
+
+function getFullPhoneNumber(countryCode: string, localNumber: string) {
+  const trimmed = localNumber.trim().replace(/^\+/, '');
+  if (!trimmed) return undefined;
+  return `${countryCode}${trimmed.replace(/\s+/g, '')}`;
+}
 
 /** Form on the right, poster wall on the left (desktop only). */
 function AuthShell({ title, children }: { title: string; children: ReactNode }) {
@@ -102,6 +109,7 @@ export function SignIn() {
 export function SignUp() {
   const navigate = useNavigate();
   const [f, setF] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
+  const [countryCode, setCountryCode] = useState('NG');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }));
@@ -110,13 +118,14 @@ export function SignUp() {
     e.preventDefault();
     const name = f.name.trim();
     const email = f.email.trim();
+    const fullPhone = getFullPhoneNumber(findCountry(countryCode).dial, f.phone);
     if (!name || !email || !f.password) return setError('Please fill in all required fields.');
     if (f.password !== f.confirm) return setError('Passwords do not match.');
     if (f.password.length < 6) return setError('Password must be at least 6 characters.');
     setLoading(true);
     setError(null);
     try {
-      await AuthService.register({ fullName: name, email, password: f.password, phoneNumber: f.phone.trim() || undefined });
+      await AuthService.register({ fullName: name, email, password: f.password, phoneNumber: fullPhone });
       navigate(`/verify?mode=signup&email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError((err as Error).message);
@@ -140,8 +149,16 @@ export function SignUp() {
         <div className="field">
           <label htmlFor="phone">Phone Number (optional)</label>
           <div className="phone-row">
-            <span className="prefix">+234</span>
-            <input id="phone" className="input" type="tel" autoComplete="tel-national" placeholder="Phone number" value={f.phone} onChange={(e) => set('phone')(e.target.value)} />
+            <CountryCodePicker value={countryCode} onChange={setCountryCode} />
+            <input
+              id="phone"
+              className="input"
+              type="tel"
+              autoComplete="tel"
+              placeholder="Phone number"
+              value={f.phone}
+              onChange={(e) => set('phone')(e.target.value)}
+            />
           </div>
         </div>
         <div className="field">

@@ -1,12 +1,35 @@
+import re
+
+
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import User
 
 
+def normalize_phone_number(value):
+    if value is None:
+        return ''
+
+    normalized = re.sub(r'\s+', '', value.strip())
+    normalized = normalized.replace('(', '').replace(')', '').replace('-', '').replace('.', '')
+
+    if normalized.startswith('00'):
+        normalized = '+' + normalized[2:]
+
+    if normalized and not normalized.startswith('+'):
+        normalized = '+' + normalized
+
+    if normalized and not re.fullmatch(r'\+[1-9]\d{6,14}', normalized):
+        raise serializers.ValidationError('Enter a valid international phone number, for example +14155552671.')
+
+    return normalized
+
+
 class RegisterSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
-    phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    phone_number = serializers.CharField(
+        max_length=30, required=False, allow_blank=True, trim_whitespace=True)
     password = serializers.CharField(write_only=True, min_length=6)
     role = serializers.ChoiceField(choices=['user', 'admin'], default='user', required=False)
 
@@ -14,6 +37,11 @@ class RegisterSerializer(serializers.Serializer):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError('A user with this email already exists.')
         return value
+
+    def validate_phone_number(self, value):
+        if not value or not value.strip():
+            return ''
+        return normalize_phone_number(value)
 
     def create(self, validated_data):
         full_name = validated_data.pop('full_name', '').strip()

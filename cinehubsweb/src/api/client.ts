@@ -3,7 +3,10 @@
 
 export const BACKEND_URL: string =
   import.meta.env.VITE_BACKEND_URL || 'https://cinehubsbackend-production.up.railway.app';
-export const API_BASE: string = import.meta.env.VITE_API_BASE || '/api';
+// Dev uses the Vite proxy (/api); production builds call the backend directly
+// (its CORS allows the web app's origin) rather than relying on a host rewrite.
+export const API_BASE: string =
+  import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? '/api' : `${BACKEND_URL}/api`);
 
 const ACCESS_KEY = 'access_token';
 const REFRESH_KEY = 'refresh_token';
