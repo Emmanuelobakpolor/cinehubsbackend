@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { MovieService } from '../api/services';
+import { MovieService, UserService } from '../api/services';
+import { useCaptureGuard } from '../lib/captureGuard';
 import { Icon } from '../components/Icon';
 import { Spinner } from '../components/ui';
 
@@ -23,6 +24,32 @@ export default function Player() {
   const [rate, setRate] = useState(1);
   const [speedOpen, setSpeedOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [viewer, setViewer] = useState('');
+  const [markPos, setMarkPos] = useState({ x: 10, y: 15 });
+
+  // Blank the picture whenever a capture is likely; the viewer taps to resume.
+  const pauseVideo = useCallback(() => videoRef.current?.pause(), []);
+  const { shielded, unshield } = useCaptureGuard(pauseVideo);
+  const resume = () => {
+    unshield();
+    videoRef.current?.play().catch(() => {});
+  };
+
+  // Watermark full movies with who is watching, so leaked recordings can be traced.
+  useEffect(() => {
+    if (isTrailer) return;
+    UserService.getProfile()
+      .then((p) => setViewer(p.email || `User #${p.id}`))
+      .catch(() => {});
+  }, [isTrailer]);
+
+  // Move the watermark every 8s so it can't simply be cropped or blurred out.
+  useEffect(() => {
+    if (!viewer) return;
+    const move = () => setMarkPos({ x: 5 + Math.random() * 60, y: 12 + Math.random() * 70 });
+    const t = setInterval(move, 8000);
+    return () => clearInterval(t);
+  }, [viewer]);
 
   // Resolve the stream URL; full movies require access (premium or paid).
   useEffect(() => {
@@ -214,14 +241,28 @@ export default function Player() {
             autoPlay
             controls
             playsInline
-            controlsList="nodownload nofullscreen"
-            disablePictureInPicture={false}
+            controlsList="nodownload nofullscreen noremoteplayback"
+            disablePictureInPicture
+            disableRemotePlayback
+            onContextMenu={(e) => e.preventDefault()}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
             onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
             onError={() => setLoadError(true)}
           />
+          {viewer && (
+            <div className="watermark" style={{ left: `${markPos.x}%`, top: `${markPos.y}%` }} aria-hidden>
+              {viewer}
+            </div>
+          )}
+          {shielded && (
+            <button className="capture-shield" onClick={resume}>
+              <Icon name="lock" size={36} />
+              <span>Playback paused to protect this content</span>
+              <small>Click to resume</small>
+            </button>
+          )}
           <div className="center-controls">
             <button onClick={() => skip(-10)} aria-label="Back 10 seconds"><Icon name="replay10" size={40} /></button>
             <button className="big" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
