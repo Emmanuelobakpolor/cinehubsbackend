@@ -7,13 +7,13 @@ from .models import Review
 @receiver(post_save, sender=Review)
 def notify_admin_new_review(sender, instance, created, **kwargs):
     """Create an ADMIN notification when a user submits a new rating/review."""
-    if not created:
-        return  # Only fire on creation, not on edits
+    if not created or instance.user_id is None:
+        return  # Only fire on creation, and not for reviews the admin wrote
 
     from notifications.models import Notification
 
     stars = '★' * instance.rating + '☆' * (5 - instance.rating)
-    username = instance.user.get_full_name() or instance.user.email
+    username = instance.public_name
     comment_preview = (
         f' — "{instance.comment[:80]}…"' if len(instance.comment) > 80
         else (f' — "{instance.comment}"' if instance.comment else '')

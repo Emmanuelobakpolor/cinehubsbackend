@@ -16,8 +16,8 @@ build/
 
 # Virtual environment
 venv/
-Lib/
-Scripts/
+/Lib/
+/Scripts/
 .env/
 env/
 ENV/

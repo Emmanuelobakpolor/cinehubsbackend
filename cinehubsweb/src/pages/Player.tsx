@@ -4,8 +4,12 @@ import { MovieService, UserService } from '../api/services';
 import { useCaptureGuard } from '../lib/captureGuard';
 import { Icon } from '../components/Icon';
 import { Spinner } from '../components/ui';
+import { attachStream, endSession, playbackError, type PlaybackError, type PlaybackSession } from '../lib/streaming';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/** Public trailers play straight from their file; full movies only through an authorized session. */
+type Source = { kind: 'file'; url: string } | { kind: 'session'; session: PlaybackSession; startAt: number };
 
 export default function Player() {
   const { id } = useParams();
@@ -15,10 +19,15 @@ export default function Player() {
   const navigate = useNavigate();
   const shellRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [src, setSrc] = useState<string | null>(null);
+  const [source, setSource] = useState<Source | null>(null);
   const [title, setTitle] = useState('');
+  // error: nothing to retry (no access, no file). loadError: playback failed; Retry is offered.
   const [error, setError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped to ask the backend for a fresh playback session.
+  const [attempt, setAttempt] = useState(0);
+  const resumeAt = useRef(0);
+  const autoRetries = useRef(0);
   const [idle, setIdle] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
@@ -51,7 +60,8 @@ export default function Player() {
     return () => clearInterval(t);
   }, [viewer]);
 
-  // Resolve the stream URL; full movies require access (premium or paid).
+  // Resolve what to play. Full movies need a playback session, which the backend
+  // only grants after checking access (premium or paid) on its side.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -59,32 +69,71 @@ export default function Player() {
       if (!alive) return;
       if (isTrailer) {
         setTitle(`${movie.title} — Trailer`);
-        setSrc(movie.thrillerClipUrl || movie.trailerUrl || null);
-        if (!movie.thrillerClipUrl && !movie.trailerUrl) setError('No trailer available for this title.');
+        const url = movie.thrillerClipUrl || movie.trailerUrl;
+        if (url) setSource({ kind: 'file', url });
+        else setError('No trailer available for this title.');
         return;
       }
       setTitle(movie.title);
-      const access = await MovieService.checkAccess(movieId);
+      const res = await MovieService.startPlayback(movieId);
       if (!alive) return;
-      if (!access.allowed) {
+      if (res.status === 'payment_required') {
         navigate(`/movie/${movieId}`, { replace: true, state: { movie, autoplay: true } });
         return;
       }
-      const url = access.downloadUrl || movie.movieFileUrl;
-      if (!url) setError('This movie file is not available yet.');
-      else setSrc(url);
+      setSource({ kind: 'session', session: res.session, startAt: resumeAt.current });
     })().catch((e) => alive && setError(e.message || 'Could not load video.'));
     return () => {
       alive = false;
     };
-  }, [movieId, isTrailer, navigate]);
+  }, [movieId, isTrailer, navigate, attempt]);
+
+  // An expired session or dropped connection gets one automatic fresh session,
+  // resuming where the viewer was; after that, show the error with Retry.
+  const onStreamError = useCallback((e: PlaybackError) => {
+    if ((e.kind === 'auth' || e.kind === 'network') && autoRetries.current < 1) {
+      autoRetries.current += 1;
+      setAttempt((a) => a + 1);
+      return;
+    }
+    setLoadError(e.message);
+  }, []);
+
+  const failed = !!(error || loadError);
+
+  // Start the authorized stream on the <video>, and tear it down (ending the
+  // backend session) when the session changes, playback fails or we leave.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || failed || source?.kind !== 'session') return;
+    const { session, startAt } = source;
+    let disposed = false;
+    let teardown: (() => void) | null = null;
+    // Closing the tab or a full page load never unmounts React, so end the session here too.
+    const onPageHide = () => endSession(session);
+    window.addEventListener('pagehide', onPageHide);
+    attachStream(video, session, { startAt, onError: onStreamError })
+      .then((destroy) => {
+        if (disposed) return destroy();
+        teardown = destroy;
+        video.play().catch(() => {});
+      })
+      .catch((e) => !disposed && onStreamError(e));
+    return () => {
+      disposed = true;
+      window.removeEventListener('pagehide', onPageHide);
+      teardown?.();
+      endSession(session);
+    };
+  }, [source, failed, onStreamError]);
 
   // Report watch progress every 15s and when leaving, like the app.
   useEffect(() => {
-    if (isTrailer || !src) return;
+    // Hold the element itself: React clears videoRef before this cleanup runs on leave.
+    const v = videoRef.current;
+    if (isTrailer || !source || !v) return;
     const send = () => {
-      const v = videoRef.current;
-      if (v && v.currentTime > 0) MovieService.updateWatchProgress(movieId, Math.floor(v.currentTime));
+      if (v.currentTime > 0) MovieService.updateWatchProgress(movieId, Math.floor(v.currentTime));
     };
     const t = setInterval(send, 15_000);
     window.addEventListener('pagehide', send);
@@ -93,7 +142,7 @@ export default function Player() {
       window.removeEventListener('pagehide', send);
       send();
     };
-  }, [src, isTrailer, movieId]);
+  }, [source, isTrailer, movieId]);
 
   // Keep the screen awake while playing (the app uses wakelock_plus).
   useEffect(() => {
@@ -169,9 +218,21 @@ export default function Player() {
     setSpeedOpen(false);
   };
   const retry = () => {
-    setLoadError(false);
-    videoRef.current?.load();
-    videoRef.current?.play().catch(() => {});
+    setLoadError(null);
+    autoRetries.current = 0;
+    if (source?.kind === 'file') {
+      videoRef.current?.load();
+      videoRef.current?.play().catch(() => {});
+    } else {
+      setSource(null); // the old session has ended; wait for a fresh one
+      setAttempt((a) => a + 1);
+    }
+  };
+  const onVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    // With MediaSource (a blob: URL) Shaka reports the failure itself.
+    if (e.currentTarget.currentSrc.startsWith('blob:')) return;
+    if (source?.kind === 'session') onStreamError(playbackError('network'));
+    else setLoadError('Could not load video.');
   };
 
   // Keyboard: ←/→ skip 10s, space play/pause, F fullscreen.
@@ -188,8 +249,6 @@ export default function Player() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const failed = error || loadError;
-
   return (
     <div ref={shellRef} className={`player ${idle ? 'idle' : ''}`}>
       <div className="bar">
@@ -197,7 +256,7 @@ export default function Player() {
           <Icon name="back" />
         </button>
         <strong className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</strong>
-        {src && !failed && (
+        {source && !failed && (
           <>
             <div style={{ position: 'relative' }}>
               <button className="speed-btn" onClick={() => setSpeedOpen(!speedOpen)} aria-label="Playback speed" aria-expanded={speedOpen}>
@@ -223,7 +282,7 @@ export default function Player() {
       {failed ? (
         <div className="center" style={{ color: '#fff', padding: 24 }}>
           <Icon name="info" size={40} />
-          <p className="mt8">{error ?? 'Could not load video.'}</p>
+          <p className="mt8" role="alert">{error ?? loadError}</p>
           <div className="flex mt16" style={{ justifyContent: 'center' }}>
             {loadError && (
               <button className="btn btn-primary" onClick={retry}>
@@ -233,11 +292,11 @@ export default function Player() {
             <button className="btn btn-ghost" style={{ color: '#fff' }} onClick={() => navigate(-1)}>Go back</button>
           </div>
         </div>
-      ) : src ? (
+      ) : source ? (
         <>
           <video
             ref={videoRef}
-            src={src}
+            src={source.kind === 'file' ? source.url : undefined}
             autoPlay
             controls
             playsInline
@@ -246,10 +305,17 @@ export default function Player() {
             disableRemotePlayback
             onContextMenu={(e) => e.preventDefault()}
             onPlay={() => setPlaying(true)}
+            onPlaying={() => {
+              autoRetries.current = 0;
+            }}
+            onTimeUpdate={(e) => {
+              // Where a fresh session resumes from after an expiry or Retry.
+              if (e.currentTarget.currentTime > 0) resumeAt.current = e.currentTarget.currentTime;
+            }}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
             onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
-            onError={() => setLoadError(true)}
+            onError={onVideoError}
           />
           {viewer && (
             <div className="watermark" style={{ left: `${markPos.x}%`, top: `${markPos.y}%` }} aria-hidden>

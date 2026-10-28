@@ -107,7 +107,22 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    # Scoped throttles for the playback endpoints (ScopedRateThrottle).
+    'DEFAULT_THROTTLE_RATES': {
+        'playback': config('PLAYBACK_THROTTLE_RATE', default='60/hour'),
+        'stream': config('STREAM_THROTTLE_RATE', default='600/hour'),
+    },
 }
+
+# Throttle counters live in the cache. The default in-memory cache is per
+# process; set USE_REDIS_CACHE=True to share counters across gunicorn workers.
+if config('USE_REDIS_CACHE', default=False, cast=bool):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': config('REDIS_URL', default='redis://localhost:6379/0'),
+        }
+    }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
@@ -132,6 +147,34 @@ if USE_CLOUDINARY:
 else:
     # Local storage for testing — files saved to BASE_DIR/media/
     MEDIA_ROOT = BASE_DIR / 'media'
+
+# ─── PROTECTED PLAYBACK ───────────────────────────────────────────────────────
+# Full movies play through short-lived playback sessions (movies.playback).
+# PLAYBACK_SESSION_TTL_SECONDS: how long a session can fetch the manifest/key.
+# PLAYBACK_MAX_ACTIVE_SESSIONS: simultaneous streams per account; the oldest is revoked.
+# PLAYBACK_ALLOW_PROGRESSIVE: while a movie has no encrypted stream yet, entitled
+#   users get its plain MP4 URL. Set False once every movie is packaged.
+PLAYBACK_SESSION_TTL_SECONDS = config('PLAYBACK_SESSION_TTL_SECONDS', default=7200, cast=int)
+PLAYBACK_MAX_ACTIVE_SESSIONS = config('PLAYBACK_MAX_ACTIVE_SESSIONS', default=3, cast=int)
+PLAYBACK_ALLOW_PROGRESSIVE = config('PLAYBACK_ALLOW_PROGRESSIVE', default=True, cast=bool)
+
+# Encrypted HLS packaging (movies.packaging) — needs ffmpeg on the Celery worker.
+# HLS_STORAGE: 'cloudinary' (raw files) or 'local' (MEDIA_ROOT, dev only).
+# HLS_RENDITIONS: comma-separated height:video_kbps rungs; rungs above the source are skipped.
+# HLS_AUTO_PACKAGE: queue packaging whenever a movie file is added or replaced.
+HLS_STORAGE = config('HLS_STORAGE', default='cloudinary' if USE_CLOUDINARY else 'local')
+HLS_RENDITIONS = config('HLS_RENDITIONS', default='1080:5000,720:2800,480:1200')
+HLS_SEGMENT_SECONDS = config('HLS_SEGMENT_SECONDS', default=6, cast=int)
+HLS_X264_PRESET = config('HLS_X264_PRESET', default='veryfast')
+HLS_AUTO_PACKAGE = config('HLS_AUTO_PACKAGE', default=False, cast=bool)
+
+# Commercial DRM (movies.drm). Paid service — off unless DRM_PROVIDER='mux' and
+# a Mux signing key are set. MUX_SIGNING_PRIVATE_KEY is the base64 private key
+# Mux returns when the signing key is created. Never expose these to the frontend.
+DRM_PROVIDER = config('DRM_PROVIDER', default='')
+MUX_SIGNING_KEY_ID = config('MUX_SIGNING_KEY_ID', default='')
+MUX_SIGNING_PRIVATE_KEY = config('MUX_SIGNING_PRIVATE_KEY', default='')
+MUX_PLAYBACK_RESTRICTION_ID = config('MUX_PLAYBACK_RESTRICTION_ID', default='')
 
 # No upload size limit — files are streamed to Cloudinary.
 DATA_UPLOAD_MAX_MEMORY_SIZE = None

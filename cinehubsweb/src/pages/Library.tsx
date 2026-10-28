@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MovieService } from '../api/services';
-import { daysLeftFrom, formatNaira, useApp, useLoad } from '../lib/app';
+import { daysLeftFrom, formatNaira, useLoad } from '../lib/app';
 import { Icon } from '../components/Icon';
-import { Empty, ErrorState, LoadingScreen, Poster, Spinner } from '../components/ui';
-import { triggerDownload } from './MovieDetail';
+import { Empty, ErrorState, LoadingScreen, Poster } from '../components/ui';
 
 function Head({ title, sub, onRefresh }: { title: string; sub: string; onRefresh?: () => void }) {
   return (
@@ -116,32 +114,16 @@ export function History() {
 // ── Downloads (paid titles) ────────────────────────────────────────
 
 export function Downloads() {
-  const { toast } = useApp();
   const [items, loading, error, reload] = useLoad(() => MovieService.fetchMyDownloads());
-  const [busy, setBusy] = useState<number | null>(null);
-
-  async function download(movieId: number) {
-    setBusy(movieId);
-    try {
-      const url = await MovieService.confirmMoviePayment(movieId);
-      if (!url) throw new Error('No download URL');
-      triggerDownload(url);
-      toast('Download started — check your browser downloads', 'gold');
-    } catch (e) {
-      toast(`Download failed: ${(e as Error).message}`, 'red', 6000);
-    } finally {
-      setBusy(null);
-    }
-  }
 
   if (loading && !items) return <LoadingScreen />;
   return (
     <div className="page container">
-      <Head title="Your Download History" sub="Movies you've unlocked. Each purchase is valid for 10 days." onRefresh={reload} />
+      <Head title="Your Download History" sub="Movies you've unlocked to watch on Cinehubs. Each purchase is valid for 10 days." onRefresh={reload} />
       {error && !items ? (
         <ErrorState message="Failed to load downloads" onRetry={reload} />
       ) : !items?.length ? (
-        <Empty icon="downloadDone" title="No downloads yet" text="Unlock a movie to watch or download it here." />
+        <Empty icon="downloadDone" title="No downloads yet" text="Unlock a movie to watch it here." />
       ) : (
         <div style={{ maxWidth: 820 }}>
           {items.map((d) => {
@@ -161,14 +143,9 @@ export function Downloads() {
                   </div>
                 </div>
                 {!expired && (
-                  <div className="flex" style={{ gap: 4 }}>
-                    <button className="icon-btn" onClick={() => download(d.movieId)} disabled={busy === d.movieId} aria-label={`Download ${d.movieTitle}`}>
-                      {busy === d.movieId ? <Spinner /> : <Icon name="download" />}
-                    </button>
-                    <Link to={`/watch/${d.movieId}`} className="icon-btn" style={{ background: 'var(--primary)', color: '#fff' }} aria-label={`Play ${d.movieTitle}`}>
-                      <Icon name="play" />
-                    </Link>
-                  </div>
+                  <Link to={`/watch/${d.movieId}`} className="icon-btn" style={{ background: 'var(--primary)', color: '#fff' }} aria-label={`Play ${d.movieTitle}`}>
+                    <Icon name="play" />
+                  </Link>
                 )}
               </div>
             );

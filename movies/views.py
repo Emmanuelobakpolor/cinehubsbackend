@@ -7,14 +7,19 @@ import cloudinary.uploader
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.throttling import ScopedRateThrottle
 from users.permissions import IsVerifiedUser
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.pagination import PageNumberPagination
 
 from django.conf import settings
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
+from django.db.models import Avg, Count, F, Sum
 from django.utils import timezone
 from datetime import timedelta
 from .models import Category, Movie, WatchHistory, SavedMovie, UserMovieAccess, MovieDownload
@@ -22,7 +27,12 @@ from .serializers import (
     CategorySerializer, MovieSerializer,
     WatchHistorySerializer, SavedMovieSerializer, MovieDownloadSerializer,
 )
-from subscriptions.models import SubscriptionPlan, UserSubscription
+from . import drm
+from .playback import (
+    access_expired, create_session, get_valid_session, has_active_premium, has_paid_for,
+    is_entitled, public_file_url, render_master_playlist, render_variant_playlist,
+)
+from subscriptions.models import SubscriptionPlan
 from payments.models import Payment
 
 
@@ -128,15 +138,21 @@ class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
         return [IsAdminUser()]
 
 
+class MoviePagination(PageNumberPagination):
+    page_size_query_param = 'page_size'
+    max_page_size = 500
+
+
 class MovieListCreateView(generics.ListCreateAPIView):
     queryset = Movie.objects.all().order_by('-created_at')
     serializer_class = MovieSerializer
+    pagination_class = MoviePagination
     permission_classes = [IsVerifiedUser]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['categories', 'is_trending']
     search_fields = ['title', 'synopsis', 'cast']
-    ordering_fields = ['created_at', 'views_count']
+    ordering_fields = ['created_at', 'views_count', 'title']
 
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -222,8 +238,8 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
                 defaults={'expires_at': timezone.now() + timedelta(days=10)},
             )
 
-        instance.views_count += 1
-        instance.save(update_fields=['views_count'])
+        Movie.objects.filter(pk=instance.pk).update(views_count=F('views_count') + 1)
+        instance.refresh_from_db(fields=['views_count'])
 
         # Create watch history entry on first view only — never reset watch_duration
         # so resuming works correctly after the player reports progress.
@@ -293,6 +309,15 @@ class MovieStatsView(APIView):
             'total_movies': Movie.objects.count(),
             'this_month': Movie.objects.filter(created_at__gte=start_of_month).count(),
             'storage_bytes': total_bytes,
+            'total_views': Movie.objects.aggregate(t=Sum('views_count'))['t'] or 0,
+            'top_movies': list(
+                Movie.objects.annotate(
+                    unique_viewers=Count('watched_by', distinct=True),
+                    avg_rating=Avg('reviews__rating'),
+                )
+                .order_by('-views_count', '-created_at')
+                .values('id', 'title', 'thumbnail', 'views_count', 'unique_viewers', 'avg_rating')[:10]
+            ),
         })
 
 
@@ -331,16 +356,6 @@ class UnsaveMovieView(APIView):
         return Response({'error': 'Movie not in saved list.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-def _has_active_premium(user):
-    """Return True if the user has an active Premium subscription."""
-    return UserSubscription.objects.filter(
-        user=user,
-        plan__name='PREMIUM',
-        status='ACTIVE',
-        end_date__gt=timezone.now(),
-    ).exists()
-
-
 class DownloadCheckView(APIView):
     """
     GET  /api/movies/<pk>/download/ — check if user can download.
@@ -353,21 +368,20 @@ class DownloadCheckView(APIView):
     def get(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk)
 
-        # Premium subscribers can download anything
-        if _has_active_premium(request.user):
+        # Premium subscribers can watch anything
+        if has_active_premium(request.user):
             return Response({
                 'status': 'allowed',
                 'reason': 'premium',
-                'download_url': movie.movie_file if movie.movie_file else '',
+                'download_url': public_file_url(movie),
             })
 
         # Basic user who already paid for this specific movie
-        download = MovieDownload.objects.filter(user=request.user, movie=movie).first()
-        if download:
+        if has_paid_for(request.user, movie):
             return Response({
                 'status': 'allowed',
                 'reason': 'already_paid',
-                'download_url': movie.movie_file if movie.movie_file else '',
+                'download_url': public_file_url(movie),
             })
 
         # Must pay
@@ -402,7 +416,7 @@ class ConfirmDownloadView(APIView):
         movie = get_object_or_404(Movie, pk=pk)
 
         # Premium users get free access — record the download so it shows in MyDownloadsView
-        if _has_active_premium(request.user):
+        if has_active_premium(request.user):
             MovieDownload.objects.get_or_create(
                 user=request.user,
                 movie=movie,
@@ -411,16 +425,19 @@ class ConfirmDownloadView(APIView):
             return Response({
                 'status': 'allowed',
                 'reason': 'premium',
-                'download_url': movie.movie_file if movie.movie_file else '',
+                'download_url': public_file_url(movie),
             })
 
-        # Already paid for this specific movie — idempotent re-entry
-        existing_download = MovieDownload.objects.filter(user=request.user, movie=movie).first()
+        # Already paid for this specific movie — idempotent re-entry. Rows with
+        # amount_paid=0 record past Premium access and don't count once it lapses.
+        existing_download = MovieDownload.objects.filter(
+            user=request.user, movie=movie, amount_paid__gt=0,
+        ).first()
         if existing_download:
             return Response({
                 'status': 'allowed',
                 'reason': 'already_paid',
-                'download_url': movie.movie_file if movie.movie_file else '',
+                'download_url': public_file_url(movie),
                 'amount_paid': str(existing_download.amount_paid),
             })
 
@@ -453,6 +470,15 @@ class ConfirmDownloadView(APIView):
                 status=status.HTTP_402_PAYMENT_REQUIRED,
             )
 
+        # One pay-per-movie payment unlocks one movie.
+        if MovieDownload.objects.filter(payment_reference=payment_reference).exclude(movie=movie).exists():
+            return Response(
+                {'error': 'This payment has already been used for another movie.'},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
+        # A leftover Premium access row (amount_paid=0) is replaced by the real purchase.
+        MovieDownload.objects.filter(user=request.user, movie=movie, amount_paid=0).delete()
         download = MovieDownload.objects.create(
             user=request.user,
             movie=movie,
@@ -463,7 +489,7 @@ class ConfirmDownloadView(APIView):
         return Response({
             'status': 'allowed',
             'reason': 'paid',
-            'download_url': movie.movie_file if movie.movie_file else '',
+            'download_url': public_file_url(movie),
             'amount_paid': str(download.amount_paid),
         }, status=status.HTTP_200_OK)
 
@@ -564,3 +590,174 @@ class UpdateWatchProgressView(APIView):
         )
 
         return Response({'status': 'ok', 'watch_duration': duration})
+
+
+# ─── Protected playback ───────────────────────────────────────────────────────
+
+class PlaybackSessionView(APIView):
+    """
+    POST /api/movies/<pk>/playback/
+
+    Authorizes one full-movie playback. Entitlement (Premium, or a paid Basic
+    purchase, within the 10-day viewing window) is checked here on the server;
+    the client only ever receives short-lived, revocable URLs.
+
+    200 {
+      "mode": "drm" | "hls" | "progressive",
+      "manifest_url": "...",          # HLS manifest, or the MP4 for "progressive"
+      "drm": {...} | null,            # license server URLs when mode == "drm"
+      "expires_at": "<iso>",
+      "end_url": "..."                # POST here when playback stops
+    }
+    402 { "status": "payment_required", "amount": "...", "movie_id": <id> }
+    403 { "error": "...", "code": "access_expired" }
+    503 { "error": "...", "code": "stream_not_ready" }
+    """
+    permission_classes = [IsVerifiedUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'playback'
+
+    def post(self, request, pk):
+        movie = get_object_or_404(Movie.objects.select_related('stream'), pk=pk)
+
+        if not is_entitled(request.user, movie):
+            plan = SubscriptionPlan.objects.filter(name='BASIC').first()
+            return Response(
+                {
+                    'status': 'payment_required',
+                    'amount': str(plan.price) if plan else '1000.00',
+                    'movie_id': movie.id,
+                    'movie_title': movie.title,
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+        if access_expired(request.user, movie):
+            return Response(
+                {'error': 'Your 10-day access to this movie has expired.', 'code': 'access_expired'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        stream = getattr(movie, 'stream', None)
+        if stream and stream.drm_playback_id and drm.drm_enabled():
+            mode = 'drm'
+        elif stream and stream.is_ready:
+            mode = 'hls'
+        elif settings.PLAYBACK_ALLOW_PROGRESSIVE and public_file_url(movie):
+            mode = 'progressive'
+        else:
+            return Response(
+                {
+                    'error': 'This movie is being prepared for streaming. Please try again later.',
+                    'code': 'stream_not_ready',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        session, token = create_session(request, movie, mode)
+        payload = {
+            'mode': mode,
+            'drm': None,
+            'expires_at': session.expires_at.isoformat(),
+            'end_url': request.build_absolute_uri(reverse('stream-end', args=[token])),
+        }
+        if mode == 'drm':
+            payload.update(drm.mux_playback(stream.drm_playback_id, settings.PLAYBACK_SESSION_TTL_SECONDS))
+        elif mode == 'hls':
+            payload['manifest_url'] = request.build_absolute_uri(reverse('stream-master', args=[token]))
+        else:
+            payload['manifest_url'] = public_file_url(movie)
+
+        # Same bookkeeping the player's progress reports do: start the 10-day window.
+        UserMovieAccess.objects.get_or_create(
+            user=request.user,
+            movie=movie,
+            defaults={'expires_at': timezone.now() + timedelta(days=10)},
+        )
+        return Response(payload)
+
+
+class _StreamView(APIView):
+    """
+    Base for the token-gated HLS endpoints. Native players (Safari/iOS, Android
+    ExoPlayer) can't add an Authorization header to manifest and key requests,
+    so the opaque session token in the path is the credential.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'stream'
+
+    def _session(self, token):
+        session = get_valid_session(token)
+        if not session or session.mode != 'hls':
+            return None
+        stream = getattr(session.movie, 'stream', None)
+        return session if stream and stream.is_ready else None
+
+    @staticmethod
+    def _denied():
+        return HttpResponse('Playback session expired or not authorized.', status=403, content_type='text/plain')
+
+    @staticmethod
+    def _private(response):
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+
+class StreamMasterView(_StreamView):
+    """GET /api/stream/<token>/master.m3u8"""
+
+    def get(self, request, token):
+        session = self._session(token)
+        if not session:
+            return self._denied()
+        # Relative URIs resolve against this URL, so they work behind any proxy.
+        playlist = render_master_playlist(session.movie.stream, lambda i: f'{i}.m3u8')
+        return self._private(HttpResponse(playlist, content_type='application/vnd.apple.mpegurl'))
+
+
+class StreamVariantView(_StreamView):
+    """GET /api/stream/<token>/<index>.m3u8"""
+
+    def get(self, request, token, index):
+        session = self._session(token)
+        if not session or index >= len(session.movie.stream.variants):
+            return self._denied()
+        playlist = render_variant_playlist(
+            session.movie.stream,
+            index,
+            key_uri='key',
+            absolute=request.build_absolute_uri,
+        )
+        return self._private(HttpResponse(playlist, content_type='application/vnd.apple.mpegurl'))
+
+
+class StreamKeyView(_StreamView):
+    """
+    GET /api/stream/<token>/key — the AES-128 content key.
+
+    Entitlement is re-checked on every key request, so a lapsed subscription,
+    an expired viewing window or a revoked session stops new playback even if
+    the manifest URL was copied elsewhere.
+    """
+
+    def get(self, request, token):
+        session = self._session(token)
+        if (
+            not session
+            or not is_entitled(session.user, session.movie)
+            or access_expired(session.user, session.movie)
+        ):
+            return self._denied()
+        return self._private(HttpResponse(bytes(session.movie.stream.key), content_type='application/octet-stream'))
+
+
+class StreamEndView(_StreamView):
+    """POST /api/stream/<token>/end — the player is done; free up a stream slot."""
+
+    def post(self, request, token):
+        session = get_valid_session(token)
+        if session:
+            session.revoked_at = timezone.now()
+            session.save(update_fields=['revoked_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)

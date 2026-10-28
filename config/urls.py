@@ -7,6 +7,7 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework.permissions import AllowAny
 from users.views import CreateAdminView
+from movies.urls import stream_urlpatterns
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -24,6 +25,7 @@ urlpatterns = [
     path('api/users/', include('users.urls')),
     path('api/auth/create-admin/', CreateAdminView.as_view()),
     path('api/movies/', include('movies.urls')),
+    path('api/stream/', include(stream_urlpatterns)),
     path('api/subscriptions/', include('subscriptions.urls')),
     path('api/payments/', include('payments.urls')),
     path('api/reviews/', include('reviews.urls')),

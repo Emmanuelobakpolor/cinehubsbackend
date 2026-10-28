@@ -186,3 +186,12 @@ export function buildMediaUrl(path: unknown): string {
   const s = String(path);
   return s.startsWith('http') ? s : `${BACKEND_URL}${s}`;
 }
+
+/**
+ * Backend URLs under /api are routed through API_BASE, so playback URLs the
+ * backend builds also go through the Vite dev proxy instead of cross-origin.
+ */
+export function toClientUrl(url: string): string {
+  const prefix = `${BACKEND_URL}/api/`;
+  return url.startsWith(prefix) ? `${API_BASE}/${url.slice(prefix.length)}` : url;
+}

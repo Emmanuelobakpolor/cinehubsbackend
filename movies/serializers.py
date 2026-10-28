@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from rest_framework import serializers
 from .models import Category, Movie, WatchHistory, SavedMovie, MovieDownload, UserMovieAccess
+from .playback import public_file_url
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -22,6 +23,15 @@ class MovieSerializer(serializers.ModelSerializer):
 
     def get_category_names(self, obj):
         return list(obj.categories.values_list('name', flat=True))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # The permanent file URL is for admins only; viewers get short-lived
+        # playback sessions from /api/movies/<id>/playback/ after an entitlement check.
+        request = self.context.get('request')
+        if not (request and request.user.is_staff):
+            data['movie_file'] = ''
+        return data
 
     def get_purchase_count(self, obj):
         # Only count records where money was exchanged (amount_paid > 0).
@@ -86,9 +96,13 @@ class SavedMovieSerializer(serializers.ModelSerializer):
 class MovieDownloadSerializer(serializers.ModelSerializer):
     movie_title = serializers.CharField(source='movie.title', read_only=True)
     movie_thumbnail = serializers.URLField(source='movie.thumbnail', read_only=True)
-    movie_file = serializers.URLField(source='movie.movie_file', read_only=True)
+    movie_file = serializers.SerializerMethodField()
 
     class Meta:
         model = MovieDownload
         fields = ['id', 'movie', 'movie_title', 'movie_thumbnail', 'movie_file', 'amount_paid', 'paid_at']
         read_only_fields = ['paid_at']
+
+    def get_movie_file(self, obj):
+        # Blank once the movie is stream-only; the apps then play via a playback session.
+        return public_file_url(obj.movie)

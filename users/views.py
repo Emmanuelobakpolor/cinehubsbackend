@@ -1,4 +1,5 @@
 from django.utils import timezone
+from datetime import timedelta
 from django.conf import settings
 
 from rest_framework.views import APIView
@@ -8,6 +9,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from django.contrib.auth.models import update_last_login
 
 from .models import User
 from .serializers import (
@@ -143,6 +145,7 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            update_last_login(None, user)
             refresh = RefreshToken.for_user(user)
             return Response({
                 'message': 'Login successful',
@@ -205,17 +208,38 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        from .models import User
+        from django.db.models import Q, Sum
         from subscriptions.models import UserSubscription
-        total_users = User.objects.filter(is_staff=False).count()
+        from movies.models import Movie
+
+        now = timezone.now()
+        users = User.objects.filter(is_staff=False)
+
+        def active_since(delta):
+            # A user is active if they logged in, opened a movie, or reported
+            # watch progress in the window (refresh tokens keep sessions alive,
+            # so last_login alone undercounts).
+            since = now - delta
+            return users.filter(
+                Q(last_login__gte=since)
+                | Q(playback_sessions__created_at__gte=since)
+                | Q(watch_history__watched_at__gte=since)
+            ).distinct().count()
+
         basic_subs = UserSubscription.objects.filter(
             plan__name='BASIC', status='ACTIVE'
         ).count()
         premium_subs = UserSubscription.objects.filter(
             plan__name='PREMIUM', status='ACTIVE'
         ).count()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         return Response({
-            'total_users': total_users,
+            'total_users': users.count(),
+            'new_users_this_month': users.filter(created_at__gte=start_of_month).count(),
+            'active_today': active_since(timedelta(days=1)),
+            'active_users_7d': active_since(timedelta(days=7)),
+            'active_users_30d': active_since(timedelta(days=30)),
+            'total_views': Movie.objects.aggregate(t=Sum('views_count'))['t'] or 0,
             'basic_subs': basic_subs,
             'premium_subs': premium_subs,
         })

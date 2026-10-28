@@ -1,0 +1,4 @@
+# ffmpeg/ffprobe are needed by the Celery worker to build encrypted HLS streams
+# (movies/packaging.py). "..." keeps nixpacks' default Python packages.
+[phases.setup]
+nixPkgs = ["...", "ffmpeg"]

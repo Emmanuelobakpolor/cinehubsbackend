@@ -1,5 +1,5 @@
 // One module per Flutter service, same endpoints and payloads.
-import { api, asList, storage, ApiError } from './client';
+import { api, asList, storage, ApiError, toClientUrl } from './client';
 import {
   toMovie,
   toWatchHistory,
@@ -12,6 +12,7 @@ import {
   type AppNotification,
 } from './types';
 import { buildMediaUrl } from './client';
+import type { PlaybackSession } from '../lib/streaming';
 
 // ── Auth (AuthService) ─────────────────────────────────────────────
 
@@ -123,15 +124,47 @@ export const MovieService = {
     const { data } = await api('/movies/my-downloads/');
     return asList(data).map(toDownload);
   },
+  /**
+   * Ask the backend to authorize playback. It checks entitlement and returns a
+   * short-lived session; 402 means the user still has to pay for the movie.
+   */
+  async startPlayback(
+    movieId: number,
+  ): Promise<{ status: 'ok'; session: PlaybackSession } | { status: 'payment_required' }> {
+    const { status, data } = await api(`/movies/${movieId}/playback/`, {
+      method: 'POST',
+      allowStatus: [402],
+    });
+    if (status === 402) return { status: 'payment_required' };
+    const drm = data.drm;
+    return {
+      status: 'ok',
+      session: {
+        mode: data.mode,
+        manifestUrl: toClientUrl(String(data.manifest_url ?? '')),
+        expiresAt: String(data.expires_at ?? ''),
+        endUrl: toClientUrl(String(data.end_url ?? '')),
+        drm: drm
+          ? {
+              provider: String(drm.provider),
+              widevine: String(drm.widevine),
+              playready: String(drm.playready),
+              fairplay: String(drm.fairplay),
+              fairplayCertificate: String(drm.fairplay_certificate),
+            }
+          : null,
+      },
+    };
+  },
   /** allowed=true for PREMIUM users or BASIC users who already paid for this movie. */
   async checkAccess(movieId: number) {
     const { status, data } = await api(`/movies/${movieId}/download/`, { allowStatus: [402] });
     if (status === 402) {
-      return { allowed: false, amount: String(data?.amount ?? '1000.00'), downloadUrl: '' };
+      return { allowed: false, amount: String(data?.amount ?? '1000.00') };
     }
-    return { allowed: true, amount: '0', downloadUrl: buildMediaUrl(data?.download_url) };
+    return { allowed: true, amount: '0' };
   },
-  /** Mark movie as paid (BASIC per-movie flow). Returns the download URL. */
+  /** Record a BASIC per-movie purchase against its verified payment. */
   async confirmMoviePayment(movieId: number, txRef = '') {
     const { data } = await api(`/movies/${movieId}/confirm-download/`, {
       method: 'POST',

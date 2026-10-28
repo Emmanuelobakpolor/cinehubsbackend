@@ -6,24 +6,6 @@ import { formatNaira, useApp, useLoad } from '../lib/app';
 import { Icon } from '../components/Icon';
 import { ErrorState, LoadingScreen, MovieCard, ResultDialog, Sheet, Spinner, Stars } from '../components/ui';
 
-/** Ask Cloudinary to serve the file as an attachment so the browser saves it. */
-export function attachmentUrl(url: string) {
-  return url.includes('res.cloudinary.com') && url.includes('/upload/') && !url.includes('fl_attachment')
-    ? url.replace('/upload/', '/upload/fl_attachment/')
-    : url;
-}
-
-export function triggerDownload(url: string) {
-  const a = document.createElement('a');
-  a.href = attachmentUrl(url);
-  a.rel = 'noopener';
-  a.target = '_blank';
-  a.download = '';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
 export default function MovieDetail() {
   const { id } = useParams();
   const movieId = Number(id);
@@ -47,7 +29,6 @@ function Detail({ movie: m, autoplay }: { movie: Movie; autoplay: boolean }) {
   const [paywall, setPaywall] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [similar, setSimilar] = useState<Movie[]>([]);
   const [rateOpen, setRateOpen] = useState(false);
@@ -104,21 +85,6 @@ function Detail({ movie: m, autoplay }: { movie: Movie; autoplay: boolean }) {
     }
   }
 
-  async function download() {
-    if (!access?.allowed) return setPaywall(true);
-    setDownloading(true);
-    try {
-      const url = (await MovieService.confirmMoviePayment(m.id)) || m.movieFileUrl;
-      if (!url) throw new Error('No download URL');
-      triggerDownload(url);
-      toast('Download started — check your browser downloads', 'gold');
-    } catch (e) {
-      toast(`Download failed: ${(e as Error).message}`, 'red', 6000);
-    } finally {
-      setDownloading(false);
-    }
-  }
-
   const genre = m.categoryNames.join(', ');
   const castList = m.cast.split(',').map((c) => c.trim()).filter(Boolean);
 
@@ -142,10 +108,6 @@ function Detail({ movie: m, autoplay }: { movie: Movie; autoplay: boolean }) {
               >
                 {!access ? <Spinner /> : <Icon name={access.allowed ? 'play' : 'lock'} />}
                 {!access ? 'Checking...' : 'Play'}
-              </button>
-              <button className="btn btn-dark" onClick={download} disabled={!access || downloading}>
-                {downloading ? <Spinner /> : <Icon name="download" />}
-                {downloading ? 'Preparing...' : 'Download Movie'}
               </button>
               <button className="btn btn-ghost" onClick={toggleSave} disabled={saving}>
                 <Icon name={saved ? 'bookmark' : 'bookmarkOutline'} className={saved ? 'gold' : ''} />

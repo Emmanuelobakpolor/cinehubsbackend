@@ -5,6 +5,7 @@ from .views import (
     FeaturedMovieView, SetFeaturedMovieView,
     DownloadCheckView, ConfirmDownloadView, MyDownloadsView,
     UpdateWatchProgressView, CloudinaryUploadSignatureView, CloudinaryPingView,
+    PlaybackSessionView, StreamMasterView, StreamVariantView, StreamKeyView, StreamEndView,
 )
 
 urlpatterns = [
@@ -24,4 +25,13 @@ urlpatterns = [
     path('<int:pk>/download/', DownloadCheckView.as_view()),
     path('<int:pk>/confirm-download/', ConfirmDownloadView.as_view()),
     path('<int:pk>/watch-progress/', UpdateWatchProgressView.as_view()),
+    path('<int:pk>/playback/', PlaybackSessionView.as_view()),
+]
+
+# Mounted at /api/stream/ — authorized by the playback-session token in the path.
+stream_urlpatterns = [
+    path('<str:token>/master.m3u8', StreamMasterView.as_view(), name='stream-master'),
+    path('<str:token>/<int:index>.m3u8', StreamVariantView.as_view()),
+    path('<str:token>/key', StreamKeyView.as_view()),
+    path('<str:token>/end', StreamEndView.as_view(), name='stream-end'),
 ]
