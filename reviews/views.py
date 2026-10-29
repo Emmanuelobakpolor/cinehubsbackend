@@ -1,6 +1,6 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAdminUser
-from users.permissions import IsVerifiedUser
+from users.permissions import IsVerifiedUser, IsVerifiedUserOrReadOnly
 
 from .models import Review
 from .serializers import ReviewSerializer, AdminReviewSerializer
@@ -8,7 +8,7 @@ from .serializers import ReviewSerializer, AdminReviewSerializer
 
 class MovieReviewsView(generics.ListCreateAPIView):
     serializer_class = ReviewSerializer
-    permission_classes = [IsVerifiedUser]
+    permission_classes = [IsVerifiedUserOrReadOnly]
 
     def get_queryset(self):
         movie_id = self.kwargs['movie_id']

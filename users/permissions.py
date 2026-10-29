@@ -1,5 +1,5 @@
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 
 
 EMAIL_NOT_VERIFIED = 'email_not_verified'
@@ -22,3 +22,19 @@ class IsVerifiedUser(IsAuthenticated):
             'detail': 'Please verify your email address to continue.',
             'code': EMAIL_NOT_VERIFIED,
         })
+
+
+class IsVerifiedUserOrReadOnly(IsVerifiedUser):
+    """Anyone may browse (GET/HEAD/OPTIONS); writes need a verified user.
+
+    Guests can see the catalogue before signing up (App Store guideline 5.1.1).
+    Signed-in but unverified users still get the 'email_not_verified' 403 on
+    reads, so the apps keep routing them to the OTP screen.
+    """
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS and not (
+            request.user and request.user.is_authenticated
+        ):
+            return True
+        return super().has_permission(request, view)

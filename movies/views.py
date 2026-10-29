@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.throttling import ScopedRateThrottle
-from users.permissions import IsVerifiedUser
+from users.permissions import IsVerifiedUser, IsVerifiedUserOrReadOnly
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -119,12 +119,12 @@ def _upload_movie_files_to_cloudinary(data):
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.all().order_by('name')
     serializer_class = CategorySerializer
-    permission_classes = [IsVerifiedUser]
+    permission_classes = [IsVerifiedUserOrReadOnly]
 
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAdminUser()]
-        return [IsVerifiedUser()]
+        return [IsVerifiedUserOrReadOnly()]
 
 
 class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -134,7 +134,7 @@ class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method == 'GET':
-            return [IsVerifiedUser()]
+            return [IsVerifiedUserOrReadOnly()]
         return [IsAdminUser()]
 
 
@@ -147,7 +147,7 @@ class MovieListCreateView(generics.ListCreateAPIView):
     queryset = Movie.objects.all().order_by('-created_at')
     serializer_class = MovieSerializer
     pagination_class = MoviePagination
-    permission_classes = [IsVerifiedUser]
+    permission_classes = [IsVerifiedUserOrReadOnly]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['categories', 'is_trending']
@@ -157,7 +157,7 @@ class MovieListCreateView(generics.ListCreateAPIView):
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAdminUser()]
-        return [IsVerifiedUser()]
+        return [IsVerifiedUserOrReadOnly()]
 
     def create(self, request, *args, **kwargs):
         try:
@@ -186,7 +186,7 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAdminUser()]
-        return [IsVerifiedUser()]
+        return [IsVerifiedUserOrReadOnly()]
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -209,6 +209,11 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
+
+        # Guests browsing the catalogue: show the details only. Access windows,
+        # view counts and watch history are tracked for signed-in users.
+        if not request.user.is_authenticated:
+            return Response(self.get_serializer(instance).data)
 
         # Check if user's 10-day access has expired
         access = UserMovieAccess.objects.filter(
@@ -255,11 +260,11 @@ class MovieDetailView(generics.RetrieveUpdateDestroyAPIView):
 class TrendingMoviesView(generics.ListAPIView):
     queryset = Movie.objects.filter(is_trending=True).order_by('-views_count')
     serializer_class = MovieSerializer
-    permission_classes = [IsVerifiedUser]
+    permission_classes = [IsVerifiedUserOrReadOnly]
 
 
 class FeaturedMovieView(APIView):
-    permission_classes = [IsVerifiedUser]
+    permission_classes = [IsVerifiedUserOrReadOnly]
 
     def get(self, request):
         movie = Movie.objects.filter(is_featured=True).first()
